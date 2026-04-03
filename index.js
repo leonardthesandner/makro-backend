@@ -5,7 +5,12 @@ const { initDB } = require("./db");
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "x-api-key"],
+}));
+app.options("*", cors());
 app.use(express.json());
 
 // Einfacher API-Key-Schutz – verhindert fremde Nutzung
