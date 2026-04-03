@@ -37,7 +37,7 @@ cd makro-backend
 git init
 git add .
 git commit -m "initial"
-git remote add origin https://github.com/DEIN-USERNAME/makro-backend.git
+git remote add origin https://github.com/leonardthesandner/makro-backend.git
 git push -u origin main
 ```
 
