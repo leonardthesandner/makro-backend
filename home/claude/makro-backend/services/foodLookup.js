@@ -36,6 +36,7 @@ async function lookupFood(nameEn, nameDe, usdaQuery) {
 
     // Bestes Ergebnis nehmen (erstes = relevantestes laut USDA)
     const best = results[0];
+    if (!best.kcal_100 || best.kcal_100 <= 0) return null;
 
     // In foods Tabelle speichern
     const saved = await pool.query(
