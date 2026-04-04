@@ -3,6 +3,27 @@ const router = express.Router();
 const { pool } = require("../db");
 const { parseWithClaude, PARSE_SYSTEM, hashText } = require("../services/parser");
 const { lookupFood, calcMacros } = require("../services/foodLookup");
+const Anthropic = require("@anthropic-ai/sdk");
+
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+async function estimateMacrosWithClaude(nameDe, nameEn, weightG) {
+  const msg = await anthropic.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 200,
+    system: `Schätze die Makronährstoffe für ein Lebensmittel. Antworte NUR mit JSON: {"kcal_100": number, "protein_100": number, "carbs_100": number, "fat_100": number}`,
+    messages: [{ role: "user", content: `${nameDe || nameEn}, ${weightG}g` }],
+  });
+  const raw = msg.content.map(b => b.text || "").join("").replace(/```json|```/g, "").trim();
+  const per100 = JSON.parse(raw);
+  const f = weightG / 100;
+  return {
+    kcal:    Math.round(per100.kcal_100 * f),
+    protein: Math.round(per100.protein_100 * f * 10) / 10,
+    carbs:   Math.round(per100.carbs_100 * f * 10) / 10,
+    fat:     Math.round(per100.fat_100 * f * 10) / 10,
+  };
+}
 
 // POST /api/analyze
 // Body: { text: "300g Hähnchen, 200g Reis", recipes: [{name, total_weight, kcal_100, ...}] }
@@ -82,14 +103,26 @@ router.post("/", async (req, res) => {
         };
       }
 
-      // Nicht gefunden – zurückgeben ohne Makros
-      return {
-        name_de:  item.name_de || item.name_en,
-        weight_g: item.weight_g,
-        kcal: 0, protein: 0, carbs: 0, fat: 0,
-        source:   "not_found",
-        found:    false,
-      };
+      // Nicht gefunden – Claude schätzt Makros
+      try {
+        const estimated = await estimateMacrosWithClaude(item.name_de, item.name_en, item.weight_g);
+        console.log(`🤖 Claude estimate for "${item.name_de}": ${estimated.kcal} kcal`);
+        return {
+          name_de:  item.name_de || item.name_en,
+          weight_g: item.weight_g,
+          ...estimated,
+          source:   "estimated",
+          found:    false,
+        };
+      } catch (e) {
+        return {
+          name_de:  item.name_de || item.name_en,
+          weight_g: item.weight_g,
+          kcal: 0, protein: 0, carbs: 0, fat: 0,
+          source:   "not_found",
+          found:    false,
+        };
+      }
     })
   );
 

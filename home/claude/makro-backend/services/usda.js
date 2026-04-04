@@ -42,7 +42,8 @@ async function searchUSDA(query, limit = 5) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`USDA API error: ${res.status}`);
   const data = await res.json();
-  return (data.foods || []).map(formatFood);
+  // Nur Ergebnisse mit kcal > 0 zurückgeben
+  return (data.foods || []).map(formatFood).filter(f => f.kcal_100 > 0);
 }
 
 async function getFoodByFdcId(fdcId) {
