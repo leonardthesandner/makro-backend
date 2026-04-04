@@ -8,6 +8,7 @@ const { lookupFood, calcMacros } = require("../services/foodLookup");
 // Body: { text: "300g Hähnchen, 200g Reis", recipes: [{name, total_weight, kcal_100, ...}] }
 // Returns: { items: [{name_de, weight_g, kcal, protein, carbs, fat, source, found}] }
 router.post("/", async (req, res) => {
+  console.log("🆕 analyze v2 (no USDA)");
   const { text, recipes = [] } = req.body;
   if (!text?.trim()) return res.status(400).json({ error: "text required" });
 
