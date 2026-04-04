@@ -9,7 +9,9 @@ async function estimateAndSave(nameDe, nameEn) {
   const msg = await anthropic.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 200,
-    system: `Du bist ein Ernährungsexperte. Gib die Makronährstoffe pro 100g für das genannte Lebensmittel an.
+    system: `Du bist ein Ernährungsexperte. Gib die Makronährstoffe PRO 100G für das genannte Lebensmittel an.
+WICHTIG: Alle Werte müssen sich auf exakt 100g beziehen, nicht auf eine Portion.
+Beispiele: Hähnchenbrust roh = 110 kcal, Vollmilch = 64 kcal, Weißbrot = 265 kcal (jeweils pro 100g).
 Antworte NUR mit JSON, keine Erklärungen:
 {"kcal_100": number, "protein_100": number, "carbs_100": number, "fat_100": number}`,
     messages: [{ role: "user", content: label }],
@@ -19,6 +21,11 @@ Antworte NUR mit JSON, keine Erklärungen:
   const per100 = JSON.parse(raw);
 
   if (!per100.kcal_100 || per100.kcal_100 <= 0) throw new Error("Claude returned 0 kcal");
+  if (per100.kcal_100 > 900) throw new Error(`Unrealistischer kcal-Wert: ${per100.kcal_100} (max 900/100g)`);
+  const macroSum = (per100.protein_100 * 4) + (per100.carbs_100 * 4) + (per100.fat_100 * 9);
+  if (macroSum > 0 && Math.abs(macroSum - per100.kcal_100) > per100.kcal_100 * 0.3) {
+    console.warn(`⚠️ Makro-Plausibilität für "${label}": kcal=${per100.kcal_100}, berechnet=${Math.round(macroSum)}`);
+  }
 
   // In foods Tabelle speichern
   const saved = await pool.query(
