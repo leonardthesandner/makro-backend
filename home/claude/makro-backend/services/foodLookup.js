@@ -10,15 +10,15 @@ async function lookupFood(nameEn, nameDe, usdaQuery) {
     "SELECT f.* FROM food_searches fs JOIN foods f ON f.id = fs.food_id WHERE fs.query_norm = $1",
     [searchTerm]
   );
-  if (cached.rows.length > 0) {
+  if (cached.rows.length > 0 && parseFloat(cached.rows[0].kcal_100) > 0) {
     return { ...cached.rows[0], from_cache: true };
   }
 
   // 2. In foods tabelle suchen (Namens-Match)
   const nameMatch = await pool.query(
-    `SELECT * FROM foods 
-     WHERE name_lower ILIKE $1 
-        OR $2 = ANY(aliases)
+    `SELECT * FROM foods
+     WHERE (name_lower ILIKE $1 OR $2 = ANY(aliases))
+       AND kcal_100 > 0
      ORDER BY CASE WHEN name_lower = $2 THEN 0 ELSE 1 END
      LIMIT 1`,
     [`%${searchTerm}%`, searchTerm]

@@ -7,17 +7,21 @@ const API_KEY = process.env.USDA_API_KEY;
 
 // USDA nutrient IDs
 const NUTRIENTS = {
-  kcal:    1008,
-  protein: 1003,
-  carbs:   1005,
-  fat:     1004,
+  kcal:    [1008, 2047, 2048], // 2047/2048 = Atwater-Varianten bei Branded Foods
+  protein: [1003],
+  carbs:   [1005],
+  fat:     [1004],
 };
 
-function extractNutrient(foodNutrients, nutrientId) {
-  const n = foodNutrients.find(
-    (fn) => fn.nutrientId === nutrientId || fn.nutrient?.id === nutrientId
-  );
-  return n ? parseFloat(n.value || n.amount || 0) : 0;
+function extractNutrient(foodNutrients, nutrientIds) {
+  const ids = Array.isArray(nutrientIds) ? nutrientIds : [nutrientIds];
+  for (const nutrientId of ids) {
+    const n = foodNutrients.find(
+      (fn) => fn.nutrientId === nutrientId || fn.nutrient?.id === nutrientId
+    );
+    if (n) return parseFloat(n.value || n.amount || 0);
+  }
+  return 0;
 }
 
 function formatFood(item) {
