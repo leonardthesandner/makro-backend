@@ -42,7 +42,8 @@ Antworte NUR mit JSON, keine Erklärungen:
 
 // Sucht ein Lebensmittel: erst in DB, dann Claude
 async function lookupFood(nameEn, nameDe, usdaQuery) {
-  const searchTerm = (usdaQuery || nameEn || nameDe || "").toLowerCase().trim();
+  // name_de als primärer Such-Key (stabiler als usda_query)
+  const searchTerm = (nameDe || nameEn || "").toLowerCase().trim();
 
   // 1. In food_searches nachschauen (exakter Query-Cache)
   const cached = await pool.query(
