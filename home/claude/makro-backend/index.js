@@ -5,7 +5,12 @@ const { initDB } = require("./db");
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "x-api-key"],
+}));
+app.options("*", cors());
 app.use(express.json());
 
 // Einfacher API-Key-Schutz – verhindert fremde Nutzung
@@ -35,7 +40,6 @@ initDB()
   .then(() => {
     app.listen(PORT, () => {
       console.log(`🚀 makro-backend läuft auf Port ${PORT}`);
-      console.log(`📊 USDA API Key: ${process.env.USDA_API_KEY ? "✅" : "❌ fehlt"}`);
       console.log(`🤖 Anthropic Key: ${process.env.ANTHROPIC_API_KEY ? "✅" : "❌ fehlt"}`);
       console.log(`🔐 App Secret:    ${process.env.APP_SECRET ? "✅" : "❌ fehlt"}`);
     });

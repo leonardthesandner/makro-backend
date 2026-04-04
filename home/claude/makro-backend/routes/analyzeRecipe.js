@@ -45,7 +45,7 @@ router.post("/", async (req, res) => {
           name_usda: food.usda_name || food.name,
           weight_g:  item.weight_g,
           ...macros,
-          source:    food.from_cache ? "cache" : "usda",
+          source:    food.from_cache ? "cache" : "ai",
           found:     true,
         };
       }
