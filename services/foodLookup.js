@@ -1,68 +1,74 @@
 const { pool } = require("../db");
-const { searchUSDA } = require("./usda");
+const Anthropic = require("@anthropic-ai/sdk");
 
-// Sucht ein Lebensmittel: erst in DB, dann USDA, dann cachen
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+// Schätzt Makros per 100g via Claude und speichert sie in der DB
+async function estimateAndSave(nameDe, nameEn) {
+  const label = nameDe || nameEn;
+  const msg = await anthropic.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 200,
+    system: `Du bist ein Ernährungsexperte. Gib die Makronährstoffe pro 100g für das genannte Lebensmittel an.
+Antworte NUR mit JSON, keine Erklärungen:
+{"kcal_100": number, "protein_100": number, "carbs_100": number, "fat_100": number}`,
+    messages: [{ role: "user", content: label }],
+  });
+
+  const raw = msg.content.map(b => b.text || "").join("").replace(/```json|```/g, "").trim();
+  const per100 = JSON.parse(raw);
+
+  if (!per100.kcal_100 || per100.kcal_100 <= 0) throw new Error("Claude returned 0 kcal");
+
+  // In foods Tabelle speichern
+  const saved = await pool.query(
+    `INSERT INTO foods (name, kcal_100, protein_100, carbs_100, fat_100, source)
+     VALUES ($1, $2, $3, $4, $5, 'ai')
+     RETURNING *`,
+    [label, per100.kcal_100, per100.protein_100, per100.carbs_100, per100.fat_100]
+  );
+
+  const food = saved.rows[0];
+  console.log(`🤖 Claude schätzte "${label}": ${per100.kcal_100} kcal/100g → gespeichert (id=${food.id})`);
+  return food;
+}
+
+// Sucht ein Lebensmittel: erst in DB, dann Claude
 async function lookupFood(nameEn, nameDe, usdaQuery) {
-  const searchTerm = (usdaQuery || nameEn || nameDe).toLowerCase().trim();
+  const searchTerm = (usdaQuery || nameEn || nameDe || "").toLowerCase().trim();
 
   // 1. In food_searches nachschauen (exakter Query-Cache)
   const cached = await pool.query(
     "SELECT f.* FROM food_searches fs JOIN foods f ON f.id = fs.food_id WHERE fs.query_norm = $1",
     [searchTerm]
   );
-  if (cached.rows.length > 0) {
+  if (cached.rows.length > 0 && parseFloat(cached.rows[0].kcal_100) > 0) {
+    console.log(`📦 DB cache hit: "${searchTerm}" (${cached.rows[0].kcal_100} kcal/100g)`);
     return { ...cached.rows[0], from_cache: true };
   }
 
-  // 2. In foods tabelle suchen (Namens-Match)
+  // 2. In foods Tabelle suchen (Namens-Match)
   const nameMatch = await pool.query(
-    `SELECT * FROM foods 
-     WHERE name_lower ILIKE $1 
-        OR $2 = ANY(aliases)
+    `SELECT * FROM foods
+     WHERE (name_lower ILIKE $1 OR $2 = ANY(aliases))
+       AND kcal_100 > 0
      ORDER BY CASE WHEN name_lower = $2 THEN 0 ELSE 1 END
      LIMIT 1`,
     [`%${searchTerm}%`, searchTerm]
   );
   if (nameMatch.rows.length > 0) {
-    // Query in Suchcache eintragen
     await saveFoodSearch(searchTerm, nameMatch.rows[0].id);
+    console.log(`📦 DB name match: "${searchTerm}" → "${nameMatch.rows[0].name}"`);
     return { ...nameMatch.rows[0], from_cache: true };
   }
 
-  // 3. USDA API anfragen
+  // 3. Claude schätzt und speichert
   try {
-    const results = await searchUSDA(usdaQuery || nameEn, 5);
-    if (results.length === 0) return null;
-
-    // Bestes Ergebnis nehmen (erstes = relevantestes laut USDA)
-    const best = results[0];
-
-    // In foods Tabelle speichern
-    const saved = await pool.query(
-      `INSERT INTO foods (fdc_id, name, kcal_100, protein_100, carbs_100, fat_100, source, aliases)
-       VALUES ($1, $2, $3, $4, $5, $6, 'usda', $7)
-       ON CONFLICT (fdc_id) DO UPDATE SET
-         kcal_100 = EXCLUDED.kcal_100,
-         protein_100 = EXCLUDED.protein_100,
-         carbs_100 = EXCLUDED.carbs_100,
-         fat_100 = EXCLUDED.fat_100
-       RETURNING *`,
-      [
-        best.fdc_id,
-        nameDe || best.name, // deutschen Namen bevorzugen
-        best.kcal_100,
-        best.protein_100,
-        best.carbs_100,
-        best.fat_100,
-        nameDe ? [nameDe.toLowerCase(), nameEn?.toLowerCase(), searchTerm].filter(Boolean) : [searchTerm],
-      ]
-    );
-
-    const food = saved.rows[0];
+    const food = await estimateAndSave(nameDe, nameEn);
     await saveFoodSearch(searchTerm, food.id);
-    return { ...food, from_cache: false, usda_name: best.name };
+    return { ...food, from_cache: false };
   } catch (err) {
-    console.error("USDA lookup failed:", err.message);
+    console.error(`❌ Claude estimation failed for "${nameDe || nameEn}":`, err.message);
     return null;
   }
 }

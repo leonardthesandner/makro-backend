@@ -40,7 +40,6 @@ initDB()
   .then(() => {
     app.listen(PORT, () => {
       console.log(`🚀 makro-backend läuft auf Port ${PORT}`);
-      console.log(`📊 USDA API Key: ${process.env.USDA_API_KEY ? "✅" : "❌ fehlt"}`);
       console.log(`🤖 Anthropic Key: ${process.env.ANTHROPIC_API_KEY ? "✅" : "❌ fehlt"}`);
       console.log(`🔐 App Secret:    ${process.env.APP_SECRET ? "✅" : "❌ fehlt"}`);
     });
