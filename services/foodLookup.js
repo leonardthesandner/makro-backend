@@ -8,12 +8,13 @@ async function estimateAndSave(nameDe, nameEn) {
   const label = nameDe || nameEn;
   const msg = await anthropic.messages.create({
     model: "claude-haiku-4-5-20251001",
-    max_tokens: 200,
+    max_tokens: 300,
     system: `Du bist ein Ernährungsexperte. Gib die Makronährstoffe PRO 100G für das genannte Lebensmittel an.
 WICHTIG: Alle Werte müssen sich auf exakt 100g beziehen, nicht auf eine Portion.
 Beispiele: Hähnchenbrust roh = 110 kcal, Vollmilch = 64 kcal, Weißbrot = 265 kcal (jeweils pro 100g).
+Gib außerdem bis zu 5 Synonyme/alternative Bezeichnungen auf Deutsch an (Kurzformen, Markennamen, Schreibvarianten).
 Antworte NUR mit JSON, keine Erklärungen:
-{"kcal_100": number, "protein_100": number, "carbs_100": number, "fat_100": number}`,
+{"kcal_100": number, "protein_100": number, "carbs_100": number, "fat_100": number, "synonyme": ["synonym1", "synonym2"]}`,
     messages: [{ role: "user", content: label }],
   });
 
@@ -27,16 +28,21 @@ Antworte NUR mit JSON, keine Erklärungen:
     console.warn(`⚠️ Makro-Plausibilität für "${label}": kcal=${per100.kcal_100}, berechnet=${Math.round(macroSum)}`);
   }
 
+  // Synonyme normalisieren (max 5, lowercase)
+  const synonyme = [label.toLowerCase(), ...(per100.synonyme || []).map(s => s.toLowerCase())]
+    .filter((s, i, arr) => s && arr.indexOf(s) === i)
+    .slice(0, 5);
+
   // In foods Tabelle speichern
   const saved = await pool.query(
-    `INSERT INTO foods (name, kcal_100, protein_100, carbs_100, fat_100, source)
-     VALUES ($1, $2, $3, $4, $5, 'ai')
+    `INSERT INTO foods (name, kcal_100, protein_100, carbs_100, fat_100, source, aliases)
+     VALUES ($1, $2, $3, $4, $5, 'ai', $6)
      RETURNING *`,
-    [label, per100.kcal_100, per100.protein_100, per100.carbs_100, per100.fat_100]
+    [label, per100.kcal_100, per100.protein_100, per100.carbs_100, per100.fat_100, synonyme]
   );
 
   const food = saved.rows[0];
-  console.log(`🤖 Claude schätzte "${label}": ${per100.kcal_100} kcal/100g → gespeichert (id=${food.id})`);
+  console.log(`🤖 Claude schätzte "${label}": ${per100.kcal_100} kcal/100g, Synonyme: [${synonyme.join(", ")}] → id=${food.id}`);
   return food;
 }
 
@@ -55,14 +61,14 @@ async function lookupFood(nameEn, nameDe, usdaQuery) {
     return { ...cached.rows[0], from_cache: true };
   }
 
-  // 2. In foods Tabelle suchen (Namens-Match)
+  // 2. In foods Tabelle suchen (Name oder Synonym)
   const nameMatch = await pool.query(
     `SELECT * FROM foods
-     WHERE (name_lower ILIKE $1 OR $2 = ANY(aliases))
+     WHERE (name_lower = $1 OR $1 = ANY(aliases) OR name_lower ILIKE $2)
        AND kcal_100 > 0
-     ORDER BY CASE WHEN name_lower = $2 THEN 0 ELSE 1 END
+     ORDER BY CASE WHEN name_lower = $1 OR $1 = ANY(aliases) THEN 0 ELSE 1 END
      LIMIT 1`,
-    [`%${searchTerm}%`, searchTerm]
+    [searchTerm, `%${searchTerm}%`]
   );
   if (nameMatch.rows.length > 0) {
     await saveFoodSearch(searchTerm, nameMatch.rows[0].id);
