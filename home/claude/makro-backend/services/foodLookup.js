@@ -32,10 +32,12 @@ async function lookupFood(nameEn, nameDe, usdaQuery) {
   // 3. USDA API anfragen
   try {
     const results = await searchUSDA(usdaQuery || nameEn, 5);
+    console.log(`🔍 USDA "${usdaQuery || nameEn}": ${results.length} Ergebnisse`, results.map(r => `${r.name} kcal=${r.kcal_100}`));
     if (results.length === 0) return null;
 
     // Bestes Ergebnis nehmen (erstes = relevantestes laut USDA)
     const best = results[0];
+    console.log(`✅ Bestes Ergebnis: ${best.name} kcal_100=${best.kcal_100}`);
     if (!best.kcal_100 || best.kcal_100 <= 0) return null;
 
     // In foods Tabelle speichern
