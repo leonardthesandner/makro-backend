@@ -30,6 +30,9 @@ app.use("/api/analyze",        require("./routes/analyze"));
 app.use("/api/analyze-recipe", require("./routes/analyzeRecipe"));
 app.use("/api/recipes",        require("./routes/recipes"));
 app.use("/api/foods",          require("./routes/foods"));
+app.use("/api/diary",          require("./routes/diary"));
+app.use("/api/archive",        require("./routes/archive"));
+app.use("/api/settings",       require("./routes/settings"));
 
 const PORT = process.env.PORT || 3000;
 

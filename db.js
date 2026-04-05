@@ -70,6 +70,29 @@ async function initDB() {
     );
 
     CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_idx ON users (email_lower);
+
+    CREATE TABLE IF NOT EXISTS diary_entries (
+      id          SERIAL PRIMARY KEY,
+      user_id     TEXT NOT NULL,
+      date        DATE NOT NULL,
+      entry       JSONB NOT NULL,
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS diary_entries_user_date_idx ON diary_entries (user_id, date);
+
+    CREATE TABLE IF NOT EXISTS mealprep_archive (
+      id          SERIAL PRIMARY KEY,
+      user_id     TEXT NOT NULL,
+      recipe      JSONB NOT NULL,
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS mealprep_archive_user_idx ON mealprep_archive (user_id);
+
+    CREATE TABLE IF NOT EXISTS user_settings (
+      user_id     TEXT PRIMARY KEY,
+      settings    JSONB NOT NULL DEFAULT '{}',
+      updated_at  TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
 
   console.log("✅ Database schema ready");
