@@ -20,6 +20,7 @@ router.post("/", async (req, res) => {
       return res.json({
         found: true, source: "cache",
         name_de: f.name,
+        serving_g: f.serving_g ? parseFloat(f.serving_g) : null,
         kcal_100: f.kcal_100, protein_100: f.protein_100,
         carbs_100: f.carbs_100, fat_100: f.fat_100,
       });
@@ -48,8 +49,17 @@ router.post("/", async (req, res) => {
       // Bester verfügbarer Name
       const name = (name_de || name_en || "").trim();
 
-      // Portionsgröße aus OFF (z.B. 18.2 für einen Riegel)
-      const serving_g = parseFloat(p.serving_quantity) || null;
+      // Portionsgröße aus OFF — mehrere Felder versuchen
+      let serving_g = null;
+      const sq = parseFloat(p.serving_quantity);
+      if (sq > 0) {
+        serving_g = sq;
+      } else if (p.serving_size) {
+        // "18.2 g" / "18.2g" / "1 Riegel (18.2 g)" → erste Zahl vor 'g' extrahieren
+        const m = String(p.serving_size).replace(",", ".").match(/([\d.]+)\s*g/i);
+        if (m) serving_g = parseFloat(m[1]);
+      }
+      console.log(`📦 serving_quantity=${p.serving_quantity}, serving_size=${p.serving_size} → serving_g=${serving_g}`);
 
       if (kcal_100 > 0 && name) {
         // OFF hat vollständige Nährwerte
@@ -59,10 +69,10 @@ router.post("/", async (req, res) => {
         const r_fat     = Math.round(fat_100     * 10) / 10;
 
         await pool.query(
-          `INSERT INTO foods (name, kcal_100, protein_100, carbs_100, fat_100, aliases, source, barcode)
-           VALUES ($1, $2, $3, $4, $5, $6, 'off', $7)
+          `INSERT INTO foods (name, kcal_100, protein_100, carbs_100, fat_100, aliases, source, barcode, serving_g)
+           VALUES ($1, $2, $3, $4, $5, $6, 'off', $7, $8)
            ON CONFLICT DO NOTHING`,
-          [name, r_kcal, r_protein, r_carbs, r_fat, [], barcode]
+          [name, r_kcal, r_protein, r_carbs, r_fat, [], barcode, serving_g]
         );
 
         console.log(`📦 Barcode ${barcode} von Open Food Facts: ${name}${serving_g ? ` (${serving_g}g/Portion)` : ""}`);

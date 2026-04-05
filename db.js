@@ -75,6 +75,7 @@ async function initDB() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token TEXT;
 
     ALTER TABLE foods ADD COLUMN IF NOT EXISTS barcode TEXT;
+    ALTER TABLE foods ADD COLUMN IF NOT EXISTS serving_g DECIMAL(8,2);
     CREATE INDEX IF NOT EXISTS foods_barcode_idx ON foods (barcode) WHERE barcode IS NOT NULL;
 
     CREATE TABLE IF NOT EXISTS diary_entries (
