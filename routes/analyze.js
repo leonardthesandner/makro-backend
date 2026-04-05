@@ -65,8 +65,8 @@ router.post("/", async (req, res) => {
         }
       }
 
-      // DB-Lookup (oder Claude-Schätzung + Speicherung)
-      const food = await lookupFood(item.name_en, item.name_de, item.usda_query);
+      // DB-Lookup (oder Claude-Schätzung ohne Speicherung — wird erst beim Diary-Save gecacht)
+      const food = await lookupFood(item.name_en, item.name_de, item.usda_query, true);
 
       if (food) {
         const macros = calcMacros(food, item.weight_g);

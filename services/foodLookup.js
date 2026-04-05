@@ -47,7 +47,7 @@ Antworte NUR mit JSON, keine Erklärungen:
 }
 
 // Sucht ein Lebensmittel: erst in DB, dann Claude
-async function lookupFood(nameEn, nameDe, usdaQuery) {
+async function lookupFood(nameEn, nameDe, usdaQuery, estimateOnly = false) {
   // name_de als primärer Such-Key (stabiler als usda_query)
   const searchTerm = (nameDe || nameEn || "").toLowerCase().trim();
 
@@ -76,11 +76,44 @@ async function lookupFood(nameEn, nameDe, usdaQuery) {
     return { ...nameMatch.rows[0], from_cache: true };
   }
 
-  // 3. Claude schätzt und speichert
+  // 3. Claude schätzt — speichert nur wenn estimateOnly === false
   try {
-    const food = await estimateAndSave(nameDe, nameEn);
-    await saveFoodSearch(searchTerm, food.id);
-    return { ...food, from_cache: false };
+    if (estimateOnly) {
+      // Nur schätzen, nicht in DB speichern
+      const label = nameDe || nameEn;
+      const msg = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 300,
+        system: `Du bist ein Ernährungsexperte. Gib die Makronährstoffe PRO 100G für das genannte Lebensmittel an.
+WICHTIG: Alle Werte müssen sich auf exakt 100g beziehen, nicht auf eine Portion.
+Beispiele: Hähnchenbrust roh = 110 kcal, Vollmilch = 64 kcal, Weißbrot = 265 kcal (jeweils pro 100g).
+Gib außerdem bis zu 5 Synonyme/alternative Bezeichnungen auf Deutsch an (Kurzformen, Markennamen, Schreibvarianten).
+Antworte NUR mit JSON, keine Erklärungen:
+{"kcal_100": number, "protein_100": number, "carbs_100": number, "fat_100": number, "synonyme": ["synonym1", "synonym2"]}`,
+        messages: [{ role: "user", content: label }],
+      });
+      const raw = msg.content.map(b => b.text || "").join("").replace(/```json|```/g, "").trim();
+      const per100 = JSON.parse(raw);
+      if (!per100.kcal_100 || per100.kcal_100 <= 0) throw new Error("Claude returned 0 kcal");
+      if (per100.kcal_100 > 900) throw new Error(`Unrealistischer kcal-Wert: ${per100.kcal_100} (max 900/100g)`);
+      console.log(`🤖 Claude schätzte (estimateOnly) "${label}": ${per100.kcal_100} kcal/100g`);
+      return {
+        name: label,
+        name_de: nameDe || label,
+        name_en: nameEn || label,
+        kcal_100:    per100.kcal_100,
+        protein_100: per100.protein_100,
+        carbs_100:   per100.carbs_100,
+        fat_100:     per100.fat_100,
+        source:      "ai",
+        found:       true,
+        from_cache:  false,
+      };
+    } else {
+      const food = await estimateAndSave(nameDe, nameEn);
+      await saveFoodSearch(searchTerm, food.id);
+      return { ...food, from_cache: false };
+    }
   } catch (err) {
     console.error(`❌ Claude estimation failed for "${nameDe || nameEn}":`, err.message);
     return null;
