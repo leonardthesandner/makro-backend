@@ -16,10 +16,10 @@ router.post("/", async (req, res) => {
     );
     if (cached.rows.length > 0) {
       const f = cached.rows[0];
-      console.log(`📦 Barcode ${barcode} aus DB: ${f.name_de}`);
+      console.log(`📦 Barcode ${barcode} aus DB: ${f.name}`);
       return res.json({
         found: true, source: "cache",
-        name_de: f.name_de, name_en: f.name_en,
+        name_de: f.name,
         kcal_100: f.kcal_100, protein_100: f.protein_100,
         carbs_100: f.carbs_100, fat_100: f.fat_100,
       });
@@ -45,7 +45,10 @@ router.post("/", async (req, res) => {
       const name_de = (p.product_name_de || p.product_name || p.product_name_en || "").trim();
       const name_en = (p.product_name_en || p.product_name || name_de).trim();
 
-      if (kcal_100 > 0) {
+      // Bester verfügbarer Name
+      const name = (name_de || name_en || "").trim();
+
+      if (kcal_100 > 0 && name) {
         // OFF hat vollständige Nährwerte
         const r_kcal    = Math.round(kcal_100    * 10) / 10;
         const r_protein = Math.round(protein_100 * 10) / 10;
@@ -53,27 +56,27 @@ router.post("/", async (req, res) => {
         const r_fat     = Math.round(fat_100     * 10) / 10;
 
         await pool.query(
-          `INSERT INTO foods (name_de, name_en, kcal_100, protein_100, carbs_100, fat_100, aliases, source, barcode)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, 'off', $8)
+          `INSERT INTO foods (name, kcal_100, protein_100, carbs_100, fat_100, aliases, source, barcode)
+           VALUES ($1, $2, $3, $4, $5, $6, 'off', $7)
            ON CONFLICT DO NOTHING`,
-          [name_de.toLowerCase(), name_en, r_kcal, r_protein, r_carbs, r_fat, [], barcode]
+          [name, r_kcal, r_protein, r_carbs, r_fat, [], barcode]
         );
 
-        console.log(`📦 Barcode ${barcode} von Open Food Facts: ${name_de}`);
-        return res.json({ found: true, source: "off", name_de, name_en,
+        console.log(`📦 Barcode ${barcode} von Open Food Facts: ${name}`);
+        return res.json({ found: true, source: "off", name_de: name,
           kcal_100: r_kcal, protein_100: r_protein, carbs_100: r_carbs, fat_100: r_fat });
       }
 
-      if (name_de) {
+      if (name) {
         // Produkt in OFF gefunden, aber keine Nährwerte → Claude schätzt
-        console.log(`📦 Barcode ${barcode}: "${name_de}" in OFF ohne Nährwerte → Claude`);
-        const ai = await lookupFood(name_en || name_de, name_de, name_de, false);
+        console.log(`📦 Barcode ${barcode}: "${name}" in OFF ohne Nährwerte → Claude`);
+        const ai = await lookupFood(name, name, name, false);
         if (ai && ai.found) {
           await pool.query(
-            `UPDATE foods SET barcode = $1 WHERE LOWER(name_de) = $2 AND barcode IS NULL`,
-            [barcode, name_de.toLowerCase()]
+            `UPDATE foods SET barcode = $1 WHERE name_lower = $2 AND barcode IS NULL`,
+            [barcode, name.toLowerCase()]
           );
-          return res.json({ found: true, source: ai.source, name_de, name_en,
+          return res.json({ found: true, source: ai.source, name_de: name,
             kcal_100: ai.kcal_100, protein_100: ai.protein_100,
             carbs_100: ai.carbs_100, fat_100: ai.fat_100 });
         }
