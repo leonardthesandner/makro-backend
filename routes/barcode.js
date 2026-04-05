@@ -26,7 +26,7 @@ router.post("/", async (req, res) => {
     }
 
     // 2. Check Open Food Facts
-    const offRes = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=product_name,product_name_de,product_name_en,nutriments`);
+    const offRes = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=product_name,product_name_de,product_name_en,nutriments,serving_quantity,serving_size`);
     const offData = await offRes.json();
 
     if (offData.status === 1 && offData.product) {
@@ -48,6 +48,9 @@ router.post("/", async (req, res) => {
       // Bester verfügbarer Name
       const name = (name_de || name_en || "").trim();
 
+      // Portionsgröße aus OFF (z.B. 18.2 für einen Riegel)
+      const serving_g = parseFloat(p.serving_quantity) || null;
+
       if (kcal_100 > 0 && name) {
         // OFF hat vollständige Nährwerte
         const r_kcal    = Math.round(kcal_100    * 10) / 10;
@@ -62,8 +65,8 @@ router.post("/", async (req, res) => {
           [name, r_kcal, r_protein, r_carbs, r_fat, [], barcode]
         );
 
-        console.log(`📦 Barcode ${barcode} von Open Food Facts: ${name}`);
-        return res.json({ found: true, source: "off", name_de: name,
+        console.log(`📦 Barcode ${barcode} von Open Food Facts: ${name}${serving_g ? ` (${serving_g}g/Portion)` : ""}`);
+        return res.json({ found: true, source: "off", name_de: name, serving_g,
           kcal_100: r_kcal, protein_100: r_protein, carbs_100: r_carbs, fat_100: r_fat });
       }
 
