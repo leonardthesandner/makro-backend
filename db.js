@@ -74,6 +74,9 @@ async function initDB() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT false;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token TEXT;
 
+    ALTER TABLE foods ADD COLUMN IF NOT EXISTS barcode TEXT;
+    CREATE INDEX IF NOT EXISTS foods_barcode_idx ON foods (barcode) WHERE barcode IS NOT NULL;
+
     CREATE TABLE IF NOT EXISTS diary_entries (
       id          SERIAL PRIMARY KEY,
       user_id     TEXT NOT NULL,
