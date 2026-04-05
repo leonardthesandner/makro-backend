@@ -1,8 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
+const jwt    = require("jsonwebtoken");
+const crypto = require("crypto");
 const { pool } = require("../db");
+const { sendVerificationEmail } = require("../services/email");
 
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
@@ -14,16 +16,19 @@ router.post("/register", async (req, res) => {
     const exists = await pool.query("SELECT id FROM users WHERE email_lower = $1", [email.toLowerCase()]);
     if (exists.rows.length > 0) return res.status(409).json({ error: "Email bereits registriert" });
 
-    const hash = await bcrypt.hash(password, 10);
-    const result = await pool.query(
-      "INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email",
-      [email.toLowerCase(), hash]
+    const hash  = await bcrypt.hash(password, 10);
+    const token = crypto.randomBytes(32).toString("hex");
+
+    await pool.query(
+      "INSERT INTO users (email, password_hash, email_verified, verification_token) VALUES ($1, $2, false, $3)",
+      [email.toLowerCase(), hash, token]
     );
-    const user = result.rows[0];
-    const token = jwt.sign({ user_id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "30d" });
-    console.log(`✅ Neuer User registriert: ${user.email}`);
-    res.json({ token, user: { id: user.id, email: user.email } });
+
+    await sendVerificationEmail(email.toLowerCase(), token);
+    console.log(`📧 Registrierung: ${email.toLowerCase()} – Bestätigungsmail gesendet`);
+    res.json({ pending: true, message: "Bitte bestätige deine E-Mail-Adresse." });
   } catch (err) {
+    console.error("Register error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -37,13 +42,39 @@ router.post("/login", async (req, res) => {
     const result = await pool.query("SELECT * FROM users WHERE email_lower = $1", [email.toLowerCase()]);
     if (result.rows.length === 0) return res.status(401).json({ error: "Ungültige Anmeldedaten" });
 
-    const user = result.rows[0];
+    const user  = result.rows[0];
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: "Ungültige Anmeldedaten" });
+
+    if (!user.email_verified) {
+      return res.status(403).json({ error: "email_not_verified", message: "Bitte bestätige zuerst deine E-Mail-Adresse." });
+    }
 
     const token = jwt.sign({ user_id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "30d" });
     console.log(`🔑 Login: ${user.email}`);
     res.json({ token, user: { id: user.id, email: user.email } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/auth/resend-verification
+router.post("/resend-verification", async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: "Email erforderlich" });
+
+  try {
+    const result = await pool.query("SELECT * FROM users WHERE email_lower = $1", [email.toLowerCase()]);
+    if (result.rows.length === 0) return res.json({ ok: true }); // don't reveal existence
+
+    const user = result.rows[0];
+    if (user.email_verified) return res.json({ ok: true });
+
+    const token = crypto.randomBytes(32).toString("hex");
+    await pool.query("UPDATE users SET verification_token = $1 WHERE id = $2", [token, user.id]);
+    await sendVerificationEmail(user.email, token);
+    console.log(`📧 Resend verification: ${user.email}`);
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

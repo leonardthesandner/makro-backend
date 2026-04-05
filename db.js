@@ -71,6 +71,9 @@ async function initDB() {
 
     CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_idx ON users (email_lower);
 
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT false;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token TEXT;
+
     CREATE TABLE IF NOT EXISTS diary_entries (
       id          SERIAL PRIMARY KEY,
       user_id     TEXT NOT NULL,

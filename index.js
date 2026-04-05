@@ -17,6 +17,9 @@ app.use(express.json());
 // Health check (kein Auth nötig)
 app.get("/health", (req, res) => res.json({ status: "ok", ts: new Date().toISOString() }));
 
+// E-Mail-Verifikation (öffentlich, kein Auth nötig)
+app.use("/verify", require("./routes/verify"));
+
 // Auth-Routen: nur APP_SECRET nötig (kein JWT)
 app.use("/api/auth", (req, res, next) => {
   if (req.headers["x-api-key"] !== process.env.APP_SECRET)
