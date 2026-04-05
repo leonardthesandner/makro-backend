@@ -60,6 +60,16 @@ async function initDB() {
     );
 
     CREATE INDEX IF NOT EXISTS recipes_user_id_idx ON recipes (user_id);
+
+    CREATE TABLE IF NOT EXISTS users (
+      id            SERIAL PRIMARY KEY,
+      email         TEXT NOT NULL,
+      email_lower   TEXT GENERATED ALWAYS AS (LOWER(email)) STORED,
+      password_hash TEXT NOT NULL,
+      created_at    TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_idx ON users (email_lower);
   `);
 
   console.log("✅ Database schema ready");
