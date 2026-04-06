@@ -38,6 +38,7 @@ app.use("/api/archive",        require("./routes/archive"));
 app.use("/api/settings",       require("./routes/settings"));
 app.use("/api/barcode",          require("./routes/barcode"));
 app.use("/api/calculate-macros", require("./routes/calculateMacros"));
+app.use("/api/transcribe",       require("./routes/transcribe"));
 
 const PORT = process.env.PORT || 3000;
 
