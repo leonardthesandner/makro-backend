@@ -28,7 +28,7 @@ const html = (title, body, isError) => `
     <div class="icon">${isError ? "✗" : "✓"}</div>
     <h1>${title}</h1>
     <p>${body}</p>
-    <a href="https://leonardthesandner.github.io/makro/makro-app/makro/">Zur App →</a>
+    <a href="https://leonardthesandner.github.io/makro/">Zur App →</a>
   </div>
 </body>
 </html>`;
