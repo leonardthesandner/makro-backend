@@ -27,7 +27,14 @@ Format:
 Regeln:
 - name_en: englischer Name für USDA-Suche (USDA-Datenbank ist englisch)
 - name_de: deutscher Originalname zur Anzeige
-- weight_g: Gewicht in Gramm (Stückangaben schätzen: 1 Ei = 60g, 1 Breze = 100g, 1 Dose Tomaten = 400g, 1 EL Öl = 10g, 1 Packung Sahne 200ml = 200g)
+- weight_g: Gewicht in Gramm. Wenn eine Menge explizit genannt wird, diese verwenden. Sonst realistische Einzelportion schätzen:
+  * Fleisch/Geflügel/Fisch als Hauptgericht: 150–200g (Schweinebraten 200g, Hähnchenbrust 180g, Schnitzel 160g, Fisch 150g)
+  * Fleischbeilagen/Aufschnitt: 30–60g
+  * Stärke-Beilagen: Knödel 180g (1–2 Stück), Kartoffeln 200g, Nudeln 200g, Reis 150g, Semmelknödel 100g
+  * Gemüse als Beilage: 100–150g (Sauerkraut 100g, Salat 80g)
+  * Frühstück: Brotscheibe 50g, Brötchen 60g, Müsli/Porridge 60g, Joghurt 150g
+  * Stückangaben: 1 Ei = 60g, 1 Breze = 100g, 1 Dose Tomaten = 400g, 1 EL Öl = 10g, 1 Packung Sahne 200ml = 200g
+  * NICHT das Rohgewicht des ganzen Bratens/Gerichts nehmen — immer Portionsgröße!
 - usda_query: optimierter englischer Suchbegriff für USDA (z.B. "raw" für rohes Fleisch, "cooked" für gekochtes)
 - is_recipe: true wenn ein gespeicherter Rezeptname erkannt wird
 - recipe_name: exakter Name des Rezepts wenn is_recipe=true

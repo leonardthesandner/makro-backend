@@ -12,7 +12,7 @@ router.post("/", async (req, res) => {
   const { text, recipes = [] } = req.body;
   if (!text?.trim()) return res.status(400).json({ error: "text required" });
 
-  const inputHash = hashText(text.toLowerCase().trim());
+  const inputHash = hashText(text.toLowerCase().trim() + "_v2");
 
   // 1. Parse-Cache prüfen (gleicher Input → gleiche Struktur)
   const parseCached = await pool.query(
@@ -71,12 +71,16 @@ router.post("/", async (req, res) => {
       if (food) {
         const macros = calcMacros(food, item.weight_g);
         return {
-          name_de:  item.name_de || food.name,
-          weight_g: item.weight_g,
+          name_de:    item.name_de || food.name,
+          weight_g:   item.weight_g,
           ...macros,
-          source:   food.from_cache ? "cache" : "ai",
-          food_id:  food.id,
-          found:    true,
+          kcal_100:    food.kcal_100,
+          protein_100: food.protein_100,
+          carbs_100:   food.carbs_100,
+          fat_100:     food.fat_100,
+          source:     food.from_cache ? "cache" : "ai",
+          food_id:    food.id,
+          found:      true,
         };
       }
 
