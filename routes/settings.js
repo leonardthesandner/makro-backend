@@ -12,15 +12,23 @@ router.get("/", async (req, res) => {
   res.json(result.rows[0].settings);
 });
 
-// POST /api/settings  body: { targets: {...} }
+// POST /api/settings  body: { targets?, onboarding_done?, ... }
 router.post("/", async (req, res) => {
-  const { targets } = req.body;
-  if (!targets) return res.status(400).json({ error: "targets erforderlich" });
+  const { targets, onboarding_done } = req.body;
+  // Merge with existing settings
+  const existing = await pool.query(
+    "SELECT settings FROM user_settings WHERE user_id = $1",
+    [req.userId]
+  );
+  const current = existing.rows[0]?.settings || {};
+  const updated = { ...current };
+  if (targets !== undefined) updated.targets = targets;
+  if (onboarding_done !== undefined) updated.onboarding_done = onboarding_done;
   await pool.query(
     `INSERT INTO user_settings (user_id, settings, updated_at)
      VALUES ($1, $2, NOW())
      ON CONFLICT (user_id) DO UPDATE SET settings = $2, updated_at = NOW()`,
-    [req.userId, JSON.stringify({ targets })]
+    [req.userId, JSON.stringify(updated)]
   );
   res.json({ ok: true });
 });
