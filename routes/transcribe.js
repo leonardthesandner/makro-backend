@@ -24,7 +24,7 @@ router.post("/", upload.single("audio"), async (req, res) => {
   const form = new FormData();
   form.append("file", new Blob([req.file.buffer], { type: mime }), `audio.${ext}`);
   form.append("model", "whisper-large-v3-turbo");
-  form.append("language", "de");
+  form.append("language", req.body.language || "de");
   form.append("response_format", "json");
 
   try {
