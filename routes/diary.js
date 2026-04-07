@@ -97,6 +97,46 @@ router.post("/", async (req, res) => {
     }
   }
 
+  // Bestätigte Lebensmittel in persönliche Datenbank übernehmen
+  for (const item of items) {
+    // Rezepte und bereits persönliche Einträge überspringen
+    if (item.source === "recipe" || item.source === "personal") continue;
+
+    const name = (item.name_de || item.name || "").trim();
+    if (!name) continue;
+
+    // Per-100g Werte: direkt aus item oder aus Portion hochrechnen
+    let k = parseFloat(item.kcal_100);
+    let p = parseFloat(item.protein_100);
+    let c = parseFloat(item.carbs_100);
+    let f = parseFloat(item.fat_100);
+    if (!(k > 0)) {
+      const w = parseFloat(item.weight_g);
+      if (!w || w <= 0) continue;
+      k = (parseFloat(item.kcal)    || 0) / w * 100;
+      p = (parseFloat(item.protein) || 0) / w * 100;
+      c = (parseFloat(item.carbs)   || 0) / w * 100;
+      f = (parseFloat(item.fat)     || 0) / w * 100;
+    }
+    if (!(k > 0) || k > 900) continue;
+
+    try {
+      const exists = await pool.query(
+        "SELECT id FROM user_foods WHERE user_id = $1 AND LOWER(name) = $2",
+        [req.userId, name.toLowerCase()]
+      );
+      if (exists.rows.length === 0) {
+        await pool.query(
+          "INSERT INTO user_foods (user_id, name, kcal_100, protein_100, carbs_100, fat_100) VALUES ($1,$2,$3,$4,$5,$6)",
+          [req.userId, name, Math.round(k*10)/10, Math.round(p*10)/10, Math.round(c*10)/10, Math.round(f*10)/10]
+        );
+        console.log(`⭐ Zu persönl. DB hinzugefügt: "${name}" für User ${req.userId}`);
+      }
+    } catch (err) {
+      console.error(`⚠️ user_foods insert failed für "${name}":`, err.message);
+    }
+  }
+
   res.status(201).json({ ...result.rows[0].entry, id: result.rows[0].id });
 });
 
