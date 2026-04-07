@@ -100,6 +100,18 @@ async function initDB() {
       settings    JSONB NOT NULL DEFAULT '{}',
       updated_at  TIMESTAMPTZ DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS user_foods (
+      id          SERIAL PRIMARY KEY,
+      user_id     TEXT NOT NULL,
+      name        TEXT NOT NULL,
+      kcal_100    DECIMAL(8,2) NOT NULL,
+      protein_100 DECIMAL(8,2) NOT NULL DEFAULT 0,
+      carbs_100   DECIMAL(8,2) NOT NULL DEFAULT 0,
+      fat_100     DECIMAL(8,2) NOT NULL DEFAULT 0,
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS user_foods_user_id_idx ON user_foods (user_id);
   `);
 
   console.log("✅ Database schema ready");

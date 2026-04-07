@@ -65,7 +65,30 @@ router.post("/", async (req, res) => {
         }
       }
 
-      // DB-Lookup (oder Claude-Schätzung ohne Speicherung — wird erst beim Diary-Save gecacht)
+      // 0. Nutzereigene Datenbank zuerst prüfen
+      const searchTerm = (item.name_de || item.name_en || "").toLowerCase().trim();
+      const personalResult = await pool.query(
+        `SELECT * FROM user_foods WHERE user_id = $1 AND (LOWER(name) = $2 OR LOWER(name) ILIKE $3) LIMIT 1`,
+        [req.userId, searchTerm, `%${searchTerm}%`]
+      );
+      if (personalResult.rows.length > 0) {
+        const pf = personalResult.rows[0];
+        const macros = calcMacros(pf, item.weight_g);
+        console.log(`⭐ Personal food hit: "${pf.name}" für User ${req.userId}`);
+        return {
+          name_de:     item.name_de || pf.name,
+          weight_g:    item.weight_g,
+          ...macros,
+          kcal_100:    parseFloat(pf.kcal_100),
+          protein_100: parseFloat(pf.protein_100),
+          carbs_100:   parseFloat(pf.carbs_100),
+          fat_100:     parseFloat(pf.fat_100),
+          source:      "personal",
+          found:       true,
+        };
+      }
+
+      // 1. Globaler DB-Lookup (oder Claude-Schätzung ohne Speicherung — wird erst beim Diary-Save gecacht)
       const food = await lookupFood(item.name_en, item.name_de, item.usda_query, true);
 
       if (food) {
