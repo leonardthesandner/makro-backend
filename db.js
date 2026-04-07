@@ -114,6 +114,10 @@ async function initDB() {
     CREATE INDEX IF NOT EXISTS user_foods_user_id_idx ON user_foods (user_id);
   `);
 
+  // Fehlhafte Cache-Einträge für sehr kurze Suchbegriffe entfernen
+  // (z.B. "ei" → traf fälschlicherweise "Eiweiß")
+  await pool.query(`DELETE FROM food_searches WHERE LENGTH(query_norm) <= 3`);
+
   console.log("✅ Database schema ready");
 }
 

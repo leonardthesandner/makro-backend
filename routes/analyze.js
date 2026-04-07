@@ -67,9 +67,12 @@ router.post("/", async (req, res) => {
 
       // 0. Nutzereigene Datenbank zuerst prüfen
       const searchTerm = (item.name_de || item.name_en || "").toLowerCase().trim();
+      const useIlike = searchTerm.length >= 4;
       const personalResult = await pool.query(
-        `SELECT * FROM user_foods WHERE user_id = $1 AND (LOWER(name) = $2 OR LOWER(name) ILIKE $3) LIMIT 1`,
-        [req.userId, searchTerm, `%${searchTerm}%`]
+        useIlike
+          ? `SELECT * FROM user_foods WHERE user_id = $1 AND (LOWER(name) = $2 OR LOWER(name) ILIKE $3) LIMIT 1`
+          : `SELECT * FROM user_foods WHERE user_id = $1 AND LOWER(name) = $2 LIMIT 1`,
+        useIlike ? [req.userId, searchTerm, `%${searchTerm}%`] : [req.userId, searchTerm]
       );
       if (personalResult.rows.length > 0) {
         const pf = personalResult.rows[0];

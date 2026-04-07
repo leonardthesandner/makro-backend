@@ -62,13 +62,20 @@ async function lookupFood(nameEn, nameDe, usdaQuery, estimateOnly = false) {
   }
 
   // 2. In foods Tabelle suchen (Name oder Synonym)
+  // ILIKE nur bei Begriffen ≥ 4 Zeichen, sonst nur exakter Treffer (verhindert z.B. "ei" → "Eiweiß")
+  const useIlike = searchTerm.length >= 4;
   const nameMatch = await pool.query(
-    `SELECT * FROM foods
-     WHERE (name_lower = $1 OR $1 = ANY(aliases) OR name_lower ILIKE $2)
-       AND kcal_100 > 0
-     ORDER BY CASE WHEN name_lower = $1 OR $1 = ANY(aliases) THEN 0 ELSE 1 END
-     LIMIT 1`,
-    [searchTerm, `%${searchTerm}%`]
+    useIlike
+      ? `SELECT * FROM foods
+         WHERE (name_lower = $1 OR $1 = ANY(aliases) OR name_lower ILIKE $2)
+           AND kcal_100 > 0
+         ORDER BY CASE WHEN name_lower = $1 OR $1 = ANY(aliases) THEN 0 ELSE 1 END
+         LIMIT 1`
+      : `SELECT * FROM foods
+         WHERE (name_lower = $1 OR $1 = ANY(aliases))
+           AND kcal_100 > 0
+         LIMIT 1`,
+    useIlike ? [searchTerm, `%${searchTerm}%`] : [searchTerm]
   );
   if (nameMatch.rows.length > 0) {
     await saveFoodSearch(searchTerm, nameMatch.rows[0].id);
