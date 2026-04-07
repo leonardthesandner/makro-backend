@@ -100,6 +100,18 @@ router.post("/", async (req, res) => {
   res.status(201).json({ ...result.rows[0].entry, id: result.rows[0].id });
 });
 
+// PATCH /api/diary/:id  body: { entry }
+router.patch("/:id", async (req, res) => {
+  const { entry } = req.body;
+  if (!entry) return res.status(400).json({ error: "entry erforderlich" });
+  const result = await pool.query(
+    "UPDATE diary_entries SET entry = $1 WHERE id = $2 AND user_id = $3 RETURNING id, entry",
+    [JSON.stringify(entry), req.params.id, req.userId]
+  );
+  if (result.rows.length === 0) return res.status(404).json({ error: "Eintrag nicht gefunden" });
+  res.json({ ...result.rows[0].entry, id: result.rows[0].id });
+});
+
 // DELETE /api/diary/:id
 router.delete("/:id", async (req, res) => {
   await pool.query("DELETE FROM diary_entries WHERE id = $1 AND user_id = $2", [req.params.id, req.userId]);
