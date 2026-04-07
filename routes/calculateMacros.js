@@ -34,7 +34,11 @@ router.post("/", async (req, res) => {
   if (!weight || !goal) return res.status(400).json({ error: "weight und goal erforderlich" });
 
   const w = parseFloat(weight);
-  if (!w || w <= 0) return res.status(400).json({ error: "Ungültiges Gewicht" });
+  if (!w || w <= 0 || w > 500) return res.status(400).json({ error: "Ungültiges Gewicht" });
+  if (!["abnehmen", "halten", "aufbauen"].includes(goal)) return res.status(400).json({ error: "Ungültiges Ziel" });
+  if (gender && !["m", "f"].includes(gender)) return res.status(400).json({ error: "Ungültiges Geschlecht" });
+  if (age && (parseFloat(age) < 10 || parseFloat(age) > 120)) return res.status(400).json({ error: "Ungültiges Alter" });
+  if (height && (parseFloat(height) < 100 || parseFloat(height) > 250)) return res.status(400).json({ error: "Ungültige Größe" });
 
   const profileLines = [
     `Körpergewicht: ${w} kg`,

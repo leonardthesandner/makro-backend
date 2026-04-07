@@ -7,6 +7,7 @@ const { lookupFood } = require("../services/foodLookup");
 router.post("/", async (req, res) => {
   const { barcode } = req.body;
   if (!barcode) return res.status(400).json({ error: "Barcode erforderlich" });
+  if (!/^\d{8,14}$/.test(String(barcode))) return res.status(400).json({ error: "Ungültiger Barcode" });
 
   try {
     // 1. Check own DB first
@@ -101,7 +102,7 @@ router.post("/", async (req, res) => {
 
   } catch (err) {
     console.error("Barcode error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Barcode-Suche fehlgeschlagen." });
   }
 });
 

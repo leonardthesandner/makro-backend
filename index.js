@@ -1,44 +1,66 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const rateLimit = require("express-rate-limit");
 const { initDB } = require("./db");
 const { requireAuth } = require("./middleware/auth");
 
 const app = express();
 
+const ALLOWED_ORIGINS = [
+  "https://leonardthesandner.github.io",
+  ...(process.env.EXTRA_ORIGIN ? [process.env.EXTRA_ORIGIN] : []),
+];
+
 app.use(cors({
-  origin: "*",
+  origin: (origin, cb) => {
+    // Kein Origin = direkte Anfrage (curl, Postman, Railway health checks)
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    cb(new Error("CORS: Origin nicht erlaubt"));
+  },
   methods: ["GET", "POST", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "x-api-key", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 }));
 app.options("*", cors());
-app.use(express.json());
+app.use(express.json({ limit: "50kb" }));
+
+// Rate Limiter
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 Minuten
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Zu viele Versuche, bitte später erneut." },
+});
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 Minute
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Zu viele Anfragen, bitte warten." },
+});
 
 // Health check (kein Auth nötig)
-app.get("/health", (req, res) => res.json({ status: "ok", ts: new Date().toISOString() }));
+app.get("/health", (req, res) => res.json({ status: "ok" }));
 
 // E-Mail-Verifikation (öffentlich, kein Auth nötig)
 app.use("/verify", require("./routes/verify"));
 
-// Auth-Routen: nur APP_SECRET nötig (kein JWT)
-app.use("/api/auth", (req, res, next) => {
-  if (req.headers["x-api-key"] !== process.env.APP_SECRET)
-    return res.status(401).json({ error: "Unauthorized" });
-  next();
-}, require("./routes/auth"));
+// Auth-Routen: Rate-Limit statt APP_SECRET
+app.use("/api/auth", authLimiter, require("./routes/auth"));
 
 // Alle anderen Routen: JWT erforderlich
 app.use("/api", requireAuth);
-app.use("/api/analyze",        require("./routes/analyze"));
-app.use("/api/analyze-recipe", require("./routes/analyzeRecipe"));
+app.use("/api/analyze",          aiLimiter, require("./routes/analyze"));
+app.use("/api/analyze-recipe",   aiLimiter, require("./routes/analyzeRecipe"));
+app.use("/api/calculate-macros", aiLimiter, require("./routes/calculateMacros"));
+app.use("/api/transcribe",       aiLimiter, require("./routes/transcribe"));
 app.use("/api/recipes",        require("./routes/recipes"));
 app.use("/api/foods",          require("./routes/foods"));
 app.use("/api/diary",          require("./routes/diary"));
 app.use("/api/archive",        require("./routes/archive"));
 app.use("/api/settings",       require("./routes/settings"));
-app.use("/api/barcode",          require("./routes/barcode"));
-app.use("/api/calculate-macros", require("./routes/calculateMacros"));
-app.use("/api/transcribe",       require("./routes/transcribe"));
+app.use("/api/barcode",        require("./routes/barcode"));
 
 const PORT = process.env.PORT || 3000;
 

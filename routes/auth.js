@@ -29,7 +29,7 @@ router.post("/register", async (req, res) => {
     res.json({ pending: true, message: "Bitte bestätige deine E-Mail-Adresse." });
   } catch (err) {
     console.error("Register error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Registrierung fehlgeschlagen." });
   }
 });
 
@@ -54,7 +54,8 @@ router.post("/login", async (req, res) => {
     console.log(`🔑 Login: ${user.email}`);
     res.json({ token, user: { id: user.id, email: user.email } });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Login error:", err);
+    res.status(500).json({ error: "Anmeldung fehlgeschlagen." });
   }
 });
 
@@ -76,7 +77,8 @@ router.post("/resend-verification", async (req, res) => {
     console.log(`📧 Resend verification: ${user.email}`);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Resend error:", err);
+    res.status(500).json({ error: "Fehler beim Senden." });
   }
 });
 

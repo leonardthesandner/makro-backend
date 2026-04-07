@@ -33,17 +33,19 @@ function formatFood(item) {
   };
 }
 
+const USDA_HEADERS = { "X-Api-Key": API_KEY };
+
 async function searchUSDA(query, limit = 5) {
-  const url = `${USDA_BASE}/foods/search?api_key=${API_KEY}&query=${encodeURIComponent(query)}&pageSize=${limit}&dataType=SR%20Legacy,Foundation,Branded`;
-  const res = await fetch(url);
+  const url = `${USDA_BASE}/foods/search?query=${encodeURIComponent(query)}&pageSize=${limit}&dataType=SR%20Legacy,Foundation,Branded`;
+  const res = await fetch(url, { headers: USDA_HEADERS });
   if (!res.ok) throw new Error(`USDA API error: ${res.status}`);
   const data = await res.json();
   return (data.foods || []).map(formatFood);
 }
 
 async function getFoodByFdcId(fdcId) {
-  const url = `${USDA_BASE}/food/${fdcId}?api_key=${API_KEY}`;
-  const res = await fetch(url);
+  const url = `${USDA_BASE}/food/${fdcId}`;
+  const res = await fetch(url, { headers: USDA_HEADERS });
   if (!res.ok) throw new Error(`USDA API error: ${res.status}`);
   const data = await res.json();
   return formatFood(data);
