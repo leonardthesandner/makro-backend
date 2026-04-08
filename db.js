@@ -112,6 +112,16 @@ async function initDB() {
       created_at  TIMESTAMPTZ DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS user_foods_user_id_idx ON user_foods (user_id);
+
+    CREATE TABLE IF NOT EXISTS body_weight (
+      id          SERIAL PRIMARY KEY,
+      user_id     TEXT NOT NULL,
+      date        DATE NOT NULL,
+      weight_kg   DECIMAL(5,2) NOT NULL,
+      created_at  TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (user_id, date)
+    );
+    CREATE INDEX IF NOT EXISTS body_weight_user_date_idx ON body_weight (user_id, date);
   `);
 
   // Fehlhafte Cache-Einträge für sehr kurze Suchbegriffe entfernen

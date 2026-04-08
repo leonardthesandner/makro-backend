@@ -18,7 +18,7 @@ app.use(cors({
     if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
     cb(new Error("CORS: Origin nicht erlaubt"));
   },
-  methods: ["GET", "POST", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
 app.options("*", cors());
@@ -62,6 +62,7 @@ app.use("/api/archive",        require("./routes/archive"));
 app.use("/api/settings",       require("./routes/settings"));
 app.use("/api/barcode",        require("./routes/barcode"));
 app.use("/api/user-foods",    require("./routes/userFoods"));
+app.use("/api/body-weight",  require("./routes/bodyWeight"));
 
 const PORT = process.env.PORT || 3000;
 
