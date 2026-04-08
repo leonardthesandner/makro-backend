@@ -73,6 +73,8 @@ async function initDB() {
 
     ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT false;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires TIMESTAMPTZ;
 
     ALTER TABLE foods ADD COLUMN IF NOT EXISTS barcode TEXT;
     ALTER TABLE foods ADD COLUMN IF NOT EXISTS serving_g DECIMAL(8,2);
