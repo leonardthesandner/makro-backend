@@ -10,7 +10,7 @@ router.get("/", async (req, res) => {
   }
   try {
     const result = await pool.query(
-      `SELECT date::text, weight_kg FROM body_weight WHERE user_id = $1 AND date BETWEEN $2 AND $3 ORDER BY date`,
+      `SELECT date::text, weight_kg, burned_kcal FROM body_weight WHERE user_id = $1 AND date BETWEEN $2 AND $3 ORDER BY date`,
       [req.userId, from, to]
     );
     res.json(result.rows);
@@ -19,19 +19,27 @@ router.get("/", async (req, res) => {
   }
 });
 
-// POST /api/body-weight — upsert für ein Datum
+// POST /api/body-weight — upsert für ein Datum (weight_kg und/oder burned_kcal)
 router.post("/", async (req, res) => {
-  const { date, weight_kg } = req.body;
+  const { date, weight_kg, burned_kcal } = req.body;
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: "Ungültiges Datum" });
-  const w = parseFloat(weight_kg);
-  if (!w || w < 20 || w > 500) return res.status(400).json({ error: "Gewicht muss zwischen 20 und 500 kg liegen" });
+
+  const w = weight_kg != null ? parseFloat(weight_kg) : null;
+  const b = burned_kcal != null ? parseFloat(burned_kcal) : null;
+
+  if (w != null && (w < 20 || w > 500)) return res.status(400).json({ error: "Gewicht muss zwischen 20 und 500 kg liegen" });
+  if (b != null && (b < 0 || b > 10000)) return res.status(400).json({ error: "Verbrannte kcal ungültig" });
+  if (w == null && b == null) return res.status(400).json({ error: "weight_kg oder burned_kcal erforderlich" });
+
   try {
     const result = await pool.query(
-      `INSERT INTO body_weight (user_id, date, weight_kg)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (user_id, date) DO UPDATE SET weight_kg = $3
-       RETURNING date::text, weight_kg`,
-      [req.userId, date, w]
+      `INSERT INTO body_weight (user_id, date, weight_kg, burned_kcal)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (user_id, date) DO UPDATE SET
+         weight_kg   = COALESCE($3, body_weight.weight_kg),
+         burned_kcal = COALESCE($4, body_weight.burned_kcal)
+       RETURNING date::text, weight_kg, burned_kcal`,
+      [req.userId, date, w, b]
     );
     res.json(result.rows[0]);
   } catch {

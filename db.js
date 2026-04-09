@@ -120,11 +120,13 @@ async function initDB() {
       id          SERIAL PRIMARY KEY,
       user_id     TEXT NOT NULL,
       date        DATE NOT NULL,
-      weight_kg   DECIMAL(5,2) NOT NULL,
+      weight_kg   DECIMAL(5,2),
       created_at  TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE (user_id, date)
     );
     CREATE INDEX IF NOT EXISTS body_weight_user_date_idx ON body_weight (user_id, date);
+    ALTER TABLE body_weight ALTER COLUMN weight_kg DROP NOT NULL;
+    ALTER TABLE body_weight ADD COLUMN IF NOT EXISTS burned_kcal DECIMAL(8,2);
   `);
 
   // Fehlhafte Cache-Einträge für sehr kurze Suchbegriffe entfernen
