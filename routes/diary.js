@@ -120,6 +120,7 @@ router.post("/", async (req, res) => {
     }
     if (!(k > 0) || k > 900) continue;
 
+    const serving = parseFloat(item.weight_g) > 0 ? parseFloat(item.weight_g) : null;
     try {
       const exists = await pool.query(
         "SELECT id FROM user_foods WHERE user_id = $1 AND LOWER(name) = $2",
@@ -127,10 +128,16 @@ router.post("/", async (req, res) => {
       );
       if (exists.rows.length === 0) {
         await pool.query(
-          "INSERT INTO user_foods (user_id, name, kcal_100, protein_100, carbs_100, fat_100) VALUES ($1,$2,$3,$4,$5,$6)",
-          [req.userId, name, Math.round(k*10)/10, Math.round(p*10)/10, Math.round(c*10)/10, Math.round(f*10)/10]
+          "INSERT INTO user_foods (user_id, name, kcal_100, protein_100, carbs_100, fat_100, serving_g) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+          [req.userId, name, Math.round(k*10)/10, Math.round(p*10)/10, Math.round(c*10)/10, Math.round(f*10)/10, serving]
         );
         console.log(`⭐ Zu persönl. DB hinzugefügt: "${name}" für User ${req.userId}`);
+      } else if (serving) {
+        // Portionsgröße aktualisieren, wenn sich die Nutzungsgewohnheit ändert
+        await pool.query(
+          "UPDATE user_foods SET serving_g = $1 WHERE id = $2",
+          [serving, exists.rows[0].id]
+        );
       }
     } catch (err) {
       console.error(`⚠️ user_foods insert failed für "${name}":`, err.message);

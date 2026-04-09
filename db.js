@@ -114,6 +114,7 @@ async function initDB() {
       created_at  TIMESTAMPTZ DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS user_foods_user_id_idx ON user_foods (user_id);
+    ALTER TABLE user_foods ADD COLUMN IF NOT EXISTS serving_g DECIMAL(8,2);
 
     CREATE TABLE IF NOT EXISTS body_weight (
       id          SERIAL PRIMARY KEY,
