@@ -127,6 +127,8 @@ async function initDB() {
     CREATE INDEX IF NOT EXISTS body_weight_user_date_idx ON body_weight (user_id, date);
     ALTER TABLE body_weight ALTER COLUMN weight_kg DROP NOT NULL;
     ALTER TABLE body_weight ADD COLUMN IF NOT EXISTS burned_kcal DECIMAL(8,2);
+
+    ALTER TABLE recipes ADD COLUMN IF NOT EXISTS items JSONB;
   `);
 
   // Fehlhafte Cache-Einträge für sehr kurze Suchbegriffe entfernen
