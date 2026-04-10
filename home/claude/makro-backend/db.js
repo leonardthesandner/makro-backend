@@ -56,10 +56,14 @@ async function initDB() {
       carbs_100      DECIMAL(8,2),
       fat_100        DECIMAL(8,2),
       ingredients    TEXT,
+      items          JSONB,
       created_at     TIMESTAMPTZ DEFAULT NOW()
     );
 
     CREATE INDEX IF NOT EXISTS recipes_user_id_idx ON recipes (user_id);
+  `);
+  // migration: add items column if not exists
+  await pool.query(`ALTER TABLE recipes ADD COLUMN IF NOT EXISTS items JSONB`);
   `);
 
   console.log("✅ Database schema ready");
