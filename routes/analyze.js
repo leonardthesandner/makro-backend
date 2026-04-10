@@ -53,14 +53,19 @@ router.post("/", async (req, res) => {
         if (recipe) {
           const f = item.weight_g / recipe.total_weight;
           return {
-            name_de:  `${recipe.name} · ${item.weight_g}g`,
-            weight_g: item.weight_g,
-            kcal:     Math.round(recipe.kcal_total * f),
-            protein:  Math.round(recipe.protein_total * f * 10) / 10,
-            carbs:    Math.round(recipe.carbs_total  * f * 10) / 10,
-            fat:      Math.round(recipe.fat_total    * f * 10) / 10,
-            source:   "recipe",
-            found:    true,
+            name_de:      `${recipe.name} · ${item.weight_g}g`,
+            weight_g:     item.weight_g,
+            kcal:         Math.round(recipe.kcal_total * f),
+            protein:      Math.round(recipe.protein_total * f * 10) / 10,
+            carbs:        Math.round(recipe.carbs_total  * f * 10) / 10,
+            fat:          Math.round(recipe.fat_total    * f * 10) / 10,
+            kcal_100:     parseFloat(recipe.kcal_100)    || 0,
+            protein_100:  parseFloat(recipe.protein_100) || 0,
+            carbs_100:    parseFloat(recipe.carbs_100)   || 0,
+            fat_100:      parseFloat(recipe.fat_100)     || 0,
+            source:       "recipe",
+            recipe_name:  recipe.name,
+            found:        true,
           };
         }
       }
