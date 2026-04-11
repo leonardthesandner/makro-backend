@@ -113,19 +113,6 @@ publicRouter.post("/webhook", express.json(), async (req, res) => {
        calories, activity.distance || null, activity.moving_time || null]
     );
 
-    // Update daily burned_kcal total
-    const { rows: acts } = await pool.query(
-      "SELECT SUM(calories) AS total FROM strava_activities WHERE user_id=$1 AND date=$2",
-      [tokenRow.user_id, date]
-    );
-    const total = parseInt(acts[0]?.total || 0);
-    await pool.query(
-      `INSERT INTO body_weight (user_id, date, burned_kcal)
-       VALUES ($1,$2,$3)
-       ON CONFLICT (user_id, date) DO UPDATE SET burned_kcal=EXCLUDED.burned_kcal`,
-      [tokenRow.user_id, date, total]
-    );
-
     console.log(`🏃 Strava: "${activity.name}" ${calories} kcal für user ${tokenRow.user_id} am ${date}`);
   } catch (err) {
     console.error("Strava webhook handler error:", err);
@@ -185,6 +172,16 @@ authRouter.get("/status", async (req, res) => {
 // DELETE /api/strava/disconnect
 authRouter.delete("/disconnect", async (req, res) => {
   await pool.query("DELETE FROM strava_tokens WHERE user_id = $1", [req.userId]);
+  res.json({ ok: true });
+});
+
+// DELETE /api/strava/activities/:strava_id
+authRouter.delete("/activities/:strava_id", async (req, res) => {
+  const { strava_id } = req.params;
+  await pool.query(
+    "DELETE FROM strava_activities WHERE user_id=$1 AND strava_id=$2",
+    [req.userId, strava_id]
+  );
   res.json({ ok: true });
 });
 
