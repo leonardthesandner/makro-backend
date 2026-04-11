@@ -46,6 +46,10 @@ app.get("/health", (req, res) => res.json({ status: "ok" }));
 // E-Mail-Verifikation (öffentlich, kein Auth nötig)
 app.use("/verify", require("./routes/verify"));
 
+// Strava public routes (webhook + OAuth callback — kein JWT nötig)
+const { publicRouter: stravaPublic, authRouter: stravaAuth } = require("./routes/strava");
+app.use("/api/strava", stravaPublic);
+
 // Auth-Routen: Rate-Limit statt APP_SECRET
 app.use("/api/auth", authLimiter, require("./routes/auth"));
 
@@ -65,6 +69,7 @@ app.use("/api/barcode",        require("./routes/barcode"));
 app.use("/api/user-foods",    require("./routes/userFoods"));
 app.use("/api/body-weight",  require("./routes/bodyWeight"));
 app.use("/api/account",     require("./routes/account"));
+app.use("/api/strava",      stravaAuth);
 
 const PORT = process.env.PORT || 3000;
 

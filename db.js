@@ -129,6 +129,16 @@ async function initDB() {
     ALTER TABLE body_weight ADD COLUMN IF NOT EXISTS burned_kcal DECIMAL(8,2);
 
     ALTER TABLE recipes ADD COLUMN IF NOT EXISTS items JSONB;
+
+    CREATE TABLE IF NOT EXISTS strava_tokens (
+      user_id       TEXT PRIMARY KEY,
+      athlete_id    BIGINT UNIQUE NOT NULL,
+      access_token  TEXT NOT NULL,
+      refresh_token TEXT NOT NULL,
+      expires_at    BIGINT NOT NULL,
+      athlete_name  TEXT,
+      created_at    TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
 
   // Fehlhafte Cache-Einträge für sehr kurze Suchbegriffe entfernen
