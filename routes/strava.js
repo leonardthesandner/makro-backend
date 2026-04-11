@@ -119,26 +119,16 @@ publicRouter.post("/webhook", express.json(), async (req, res) => {
   }
 });
 
-// ── Protected router (connect + status + disconnect) ──────────────────────────
-const authRouter = express.Router();
+// GET /api/strava/connect?token=... — in public router so global requireAuth doesn't block it
 const jwt = require("jsonwebtoken");
-
-// For /connect: accept JWT from query param (browser redirect can't send headers)
-authRouter.use((req, res, next) => {
-  if (req.path === "/connect" && req.query.token) {
-    try {
-      const payload = jwt.verify(req.query.token, process.env.JWT_SECRET);
-      req.userId = String(payload.user_id);
-      return next();
-    } catch {}
+publicRouter.get("/connect", (req, res) => {
+  let userId;
+  try {
+    const payload = jwt.verify(req.query.token || "", process.env.JWT_SECRET);
+    userId = String(payload.user_id);
+  } catch {
+    return res.status(401).json({ error: "Nicht angemeldet" });
   }
-  requireAuth(req, res, next);
-});
-
-// GET /api/strava/connect?token=... — start OAuth flow (token via query for redirect)
-authRouter.get("/connect", (req, res) => {
-  // Accept JWT either from header (already handled by requireAuth) or query param
-  const userId = req.userId;
   const state = Math.random().toString(36).slice(2) + Date.now().toString(36);
   oauthStates.set(state, { userId, ts: Date.now() });
 
@@ -153,6 +143,10 @@ authRouter.get("/connect", (req, res) => {
 
   res.redirect(`https://www.strava.com/oauth/authorize?${params}`);
 });
+
+// ── Protected router (status + disconnect) ───────────────────────────────────
+const authRouter = express.Router();
+authRouter.use(requireAuth);
 
 // GET /api/strava/status — check connection status
 authRouter.get("/status", async (req, res) => {
