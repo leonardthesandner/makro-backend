@@ -55,6 +55,7 @@ app.use("/api/analyze",          aiLimiter, require("./routes/analyze"));
 app.use("/api/analyze-recipe",   aiLimiter, require("./routes/analyzeRecipe"));
 app.use("/api/calculate-macros", aiLimiter, require("./routes/calculateMacros"));
 app.use("/api/transcribe",       aiLimiter, require("./routes/transcribe"));
+app.use("/api/analyze-image",    aiLimiter, require("./routes/analyzeImage"));
 app.use("/api/recipes",        require("./routes/recipes"));
 app.use("/api/foods",          require("./routes/foods"));
 app.use("/api/diary",          require("./routes/diary"));
