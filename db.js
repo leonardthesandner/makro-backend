@@ -139,6 +139,20 @@ async function initDB() {
       athlete_name  TEXT,
       created_at    TIMESTAMPTZ DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS strava_activities (
+      id            SERIAL PRIMARY KEY,
+      user_id       TEXT NOT NULL,
+      strava_id     BIGINT UNIQUE NOT NULL,
+      date          DATE NOT NULL,
+      name          TEXT,
+      type          TEXT,
+      calories      INTEGER NOT NULL DEFAULT 0,
+      distance_m    DECIMAL(10,1),
+      duration_s    INTEGER,
+      created_at    TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS strava_activities_user_date_idx ON strava_activities (user_id, date);
   `);
 
   // Fehlhafte Cache-Einträge für sehr kurze Suchbegriffe entfernen

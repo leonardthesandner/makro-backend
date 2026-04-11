@@ -100,20 +100,33 @@ publicRouter.post("/webhook", express.json(), async (req, res) => {
     const calories = activity.calories || Math.round((activity.kilojoules || 0) / 4.184);
     if (!calories || calories <= 0) return;
 
-    // Determine activity date (local time)
     const date = (activity.start_date_local || activity.start_date || "").slice(0, 10);
     if (!date) return;
 
-    // Add to burned_kcal for that day (accumulate if multiple activities)
+    // Save individual activity
     await pool.query(
-      `INSERT INTO body_weight (user_id, date, burned_kcal)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (user_id, date) DO UPDATE SET
-         burned_kcal = COALESCE(body_weight.burned_kcal, 0) + EXCLUDED.burned_kcal`,
-      [tokenRow.user_id, date, calories]
+      `INSERT INTO strava_activities (user_id, strava_id, date, name, type, calories, distance_m, duration_s)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (strava_id) DO UPDATE SET
+         calories=EXCLUDED.calories, name=EXCLUDED.name`,
+      [tokenRow.user_id, activity.id, date, activity.name, activity.type,
+       calories, activity.distance || null, activity.moving_time || null]
     );
 
-    console.log(`🏃 Strava: ${calories} kcal für user ${tokenRow.user_id} am ${date} eingetragen`);
+    // Update daily burned_kcal total
+    const { rows: acts } = await pool.query(
+      "SELECT SUM(calories) AS total FROM strava_activities WHERE user_id=$1 AND date=$2",
+      [tokenRow.user_id, date]
+    );
+    const total = parseInt(acts[0]?.total || 0);
+    await pool.query(
+      `INSERT INTO body_weight (user_id, date, burned_kcal)
+       VALUES ($1,$2,$3)
+       ON CONFLICT (user_id, date) DO UPDATE SET burned_kcal=EXCLUDED.burned_kcal`,
+      [tokenRow.user_id, date, total]
+    );
+
+    console.log(`🏃 Strava: "${activity.name}" ${calories} kcal für user ${tokenRow.user_id} am ${date}`);
   } catch (err) {
     console.error("Strava webhook handler error:", err);
   }
@@ -147,6 +160,18 @@ publicRouter.get("/connect", (req, res) => {
 // ── Protected router (status + disconnect) ───────────────────────────────────
 const authRouter = express.Router();
 authRouter.use(requireAuth);
+
+// GET /api/strava/activities?from=YYYY-MM-DD&to=YYYY-MM-DD
+authRouter.get("/activities", async (req, res) => {
+  const { from, to } = req.query;
+  if (!from || !to) return res.status(400).json({ error: "from + to required" });
+  const { rows } = await pool.query(
+    `SELECT strava_id, date, name, type, calories, distance_m, duration_s
+     FROM strava_activities WHERE user_id=$1 AND date>=$2 AND date<=$3 ORDER BY date DESC`,
+    [req.userId, from, to]
+  );
+  res.json(rows);
+});
 
 // GET /api/strava/status — check connection status
 authRouter.get("/status", async (req, res) => {
