@@ -129,6 +129,7 @@ async function initDB() {
     ALTER TABLE body_weight ADD COLUMN IF NOT EXISTS burned_kcal DECIMAL(8,2);
 
     ALTER TABLE recipes ADD COLUMN IF NOT EXISTS items JSONB;
+    ALTER TABLE recipes ADD COLUMN IF NOT EXISTS portion_g NUMERIC;
 
     CREATE TABLE IF NOT EXISTS strava_tokens (
       user_id       TEXT PRIMARY KEY,
