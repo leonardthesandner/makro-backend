@@ -12,7 +12,8 @@ async function estimateAndSave(nameDe, nameEn) {
     system: `Du bist ein Ernährungsexperte. Gib die Makronährstoffe PRO 100G für das genannte Lebensmittel an.
 WICHTIG: Alle Werte müssen sich auf exakt 100g beziehen, nicht auf eine Portion.
 Beispiele: Hähnchenbrust roh = 110 kcal, Vollmilch = 64 kcal, Weißbrot = 265 kcal (jeweils pro 100g).
-Gib außerdem bis zu 5 Synonyme/alternative Bezeichnungen auf Deutsch an (Kurzformen, Markennamen, Schreibvarianten).
+Gib außerdem bis zu 5 Synonyme/alternative Bezeichnungen auf Deutsch an (nur Schreibvarianten und Kurzformen).
+WICHTIG: Füge KEINE Zubereitungsvarianten als Synonyme hinzu (also nicht "ungekocht", "gekocht", "roh", "gegart", "gebraten" etc. als Alias für das Basislebensmittel — diese haben andere Makrowerte und werden separat gespeichert).
 Antworte NUR mit JSON, keine Erklärungen:
 {"kcal_100": number, "protein_100": number, "carbs_100": number, "fat_100": number, "synonyme": ["synonym1", "synonym2"]}`,
     messages: [{ role: "user", content: label }],
@@ -69,7 +70,12 @@ async function lookupFood(nameEn, nameDe, usdaQuery, estimateOnly = false) {
       ? `SELECT * FROM foods
          WHERE (name_lower = $1 OR $1 = ANY(aliases) OR name_lower ILIKE $2)
            AND kcal_100 > 0
-         ORDER BY CASE WHEN name_lower = $1 OR $1 = ANY(aliases) THEN 0 ELSE 1 END
+         ORDER BY
+           -- 1. Exakter Treffer hat immer Vorrang
+           CASE WHEN name_lower = $1 OR $1 = ANY(aliases) THEN 0 ELSE 1 END,
+           -- 2. Bei ILIKE: bevorzuge den Eintrag dessen Name-Länge am nächsten am Suchbegriff ist
+           --    → "Basmati Reis ungekocht" (22) schlägt "Basmati Reis" (12) bei Suche "basmati reis ungekocht" (21)
+           ABS(LENGTH(name_lower) - LENGTH($1))
          LIMIT 1`
       : `SELECT * FROM foods
          WHERE (name_lower = $1 OR $1 = ANY(aliases))
@@ -94,7 +100,8 @@ async function lookupFood(nameEn, nameDe, usdaQuery, estimateOnly = false) {
         system: `Du bist ein Ernährungsexperte. Gib die Makronährstoffe PRO 100G für das genannte Lebensmittel an.
 WICHTIG: Alle Werte müssen sich auf exakt 100g beziehen, nicht auf eine Portion.
 Beispiele: Hähnchenbrust roh = 110 kcal, Vollmilch = 64 kcal, Weißbrot = 265 kcal (jeweils pro 100g).
-Gib außerdem bis zu 5 Synonyme/alternative Bezeichnungen auf Deutsch an (Kurzformen, Markennamen, Schreibvarianten).
+Gib außerdem bis zu 5 Synonyme/alternative Bezeichnungen auf Deutsch an (nur Schreibvarianten und Kurzformen).
+WICHTIG: Füge KEINE Zubereitungsvarianten als Synonyme hinzu (also nicht "ungekocht", "gekocht", "roh", "gegart", "gebraten" etc. — diese haben andere Makrowerte und werden separat gespeichert).
 Antworte NUR mit JSON, keine Erklärungen:
 {"kcal_100": number, "protein_100": number, "carbs_100": number, "fat_100": number, "synonyme": ["synonym1", "synonym2"]}`,
         messages: [{ role: "user", content: label }],
