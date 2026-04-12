@@ -12,6 +12,7 @@ const ALLOWED_ORIGINS = [
   "https://makro-tracking.com",
   "https://www.makro-tracking.com",
   "capacitor://localhost",
+  "https://localhost",
   "http://localhost",
   "http://localhost:3000",
   ...(process.env.EXTRA_ORIGIN ? [process.env.EXTRA_ORIGIN] : []),
