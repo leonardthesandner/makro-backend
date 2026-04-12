@@ -9,6 +9,8 @@ const app = express();
 
 const ALLOWED_ORIGINS = [
   "https://leonardthesandner.github.io",
+  "https://makro-tracking.com",
+  "https://www.makro-tracking.com",
   ...(process.env.EXTRA_ORIGIN ? [process.env.EXTRA_ORIGIN] : []),
 ];
 
