@@ -5,6 +5,8 @@ const jwt    = require("jsonwebtoken");
 const crypto = require("crypto");
 const { pool } = require("../db");
 const { sendVerificationEmail, sendPasswordResetEmail } = require("../services/email");
+const { OAuth2Client } = require("google-auth-library");
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
@@ -122,6 +124,47 @@ router.post("/reset-password", async (req, res) => {
   } catch (err) {
     console.error("Reset-password error:", err);
     res.status(500).json({ error: "Fehler beim Zurücksetzen." });
+  }
+});
+
+// POST /api/auth/google
+router.post("/google", async (req, res) => {
+  const { credential } = req.body;
+  if (!credential) return res.status(400).json({ error: "Google-Token fehlt" });
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    const googleId = payload.sub;
+    const email    = payload.email;
+
+    // 1. Nutzer über google_id finden
+    let result = await pool.query("SELECT * FROM users WHERE google_id = $1", [googleId]);
+
+    if (result.rows.length === 0) {
+      // 2. Gleiche E-Mail vorhanden? → verknüpfen
+      const byEmail = await pool.query("SELECT * FROM users WHERE email_lower = $1", [email.toLowerCase()]);
+      if (byEmail.rows.length > 0) {
+        await pool.query("UPDATE users SET google_id = $1, email_verified = true WHERE id = $2", [googleId, byEmail.rows[0].id]);
+        result = await pool.query("SELECT * FROM users WHERE id = $1", [byEmail.rows[0].id]);
+      } else {
+        // 3. Neuen Nutzer anlegen
+        result = await pool.query(
+          "INSERT INTO users (email, google_id, email_verified) VALUES ($1, $2, true) RETURNING *",
+          [email.toLowerCase(), googleId]
+        );
+      }
+    }
+
+    const user  = result.rows[0];
+    const token = jwt.sign({ user_id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "30d" });
+    console.log(`🔑 Google-Login: ${user.email}`);
+    res.json({ token, user: { id: user.id, email: user.email } });
+  } catch (err) {
+    console.error("Google-Auth error:", err);
+    res.status(401).json({ error: "Google-Anmeldung fehlgeschlagen" });
   }
 });
 
