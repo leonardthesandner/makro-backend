@@ -102,6 +102,26 @@ router.get("/dashboard", requireAdmin, async (req, res) => {
   }
 });
 
+// ─── GET /api/admin/foods ─────────────────────────────────────────────────────
+// Query-Params: page (default 1), limit (default 50), search
+router.get("/foods", requireAdmin, async (req, res) => {
+  const page   = Math.max(1, parseInt(req.query.page)  || 1);
+  const limit  = Math.min(100, parseInt(req.query.limit) || 50);
+  const search = (req.query.search || "").trim().toLowerCase();
+  const offset = (page - 1) * limit;
+  try {
+    const where  = search ? `WHERE name_lower ILIKE $3` : "";
+    const params = search ? [limit, offset, `%${search}%`] : [limit, offset];
+    const [rows, total] = await Promise.all([
+      pool.query(`SELECT id, name, barcode, kcal_100, protein_100, carbs_100, fat_100, source, is_verified FROM foods ${where} ORDER BY id DESC LIMIT $1 OFFSET $2`, params),
+      pool.query(`SELECT COUNT(*) FROM foods ${search ? `WHERE name_lower ILIKE $1` : ""}`, search ? [`%${search}%`] : []),
+    ]);
+    res.json({ rows: rows.rows, total: parseInt(total.rows[0].count), page, limit });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /api/admin/users ─────────────────────────────────────────────────────
 router.get("/users", requireAdmin, async (req, res) => {
   try {
