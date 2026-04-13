@@ -25,7 +25,7 @@ app.use(cors({
     cb(new Error("CORS: Origin nicht erlaubt"));
   },
   methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-admin-key"],
 }));
 app.options("*", cors());
 app.use(express.json({ limit: "50kb" }));
