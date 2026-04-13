@@ -134,6 +134,9 @@ async function initDB() {
     ALTER TABLE recipes ADD COLUMN IF NOT EXISTS items JSONB;
     ALTER TABLE recipes ADD COLUMN IF NOT EXISTS portion_g NUMERIC;
 
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS is_pro BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_start TIMESTAMPTZ;
+
     CREATE TABLE IF NOT EXISTS strava_tokens (
       user_id       TEXT PRIMARY KEY,
       athlete_id    BIGINT UNIQUE NOT NULL,

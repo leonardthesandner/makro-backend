@@ -74,7 +74,8 @@ app.use("/api/settings",       require("./routes/settings"));
 app.use("/api/barcode",        require("./routes/barcode"));
 app.use("/api/user-foods",    require("./routes/userFoods"));
 app.use("/api/body-weight",  require("./routes/bodyWeight"));
-app.use("/api/account",     require("./routes/account"));
+app.use("/api/account",      require("./routes/account"));
+app.use("/api/subscription", require("./routes/subscription"));
 app.use("/api/strava",      stravaAuth);
 
 const PORT = process.env.PORT || 3000;
