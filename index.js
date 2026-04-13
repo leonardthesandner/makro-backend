@@ -78,7 +78,8 @@ app.use("/api/admin", adminLimiter, require("./routes/admin"));
 // Alle anderen Routen: JWT erforderlich
 app.use("/api", requireAuth);
 app.use("/api/analyze",          aiLimiter, require("./routes/analyze"));
-app.use("/api/analyze-recipe",   aiLimiter, require("./routes/analyzeRecipe"));
+app.use("/api/analyze-recipe",       aiLimiter, require("./routes/analyzeRecipe"));
+app.use("/api/analyze-recipe-image", aiLimiter, require("./routes/analyzeRecipeImage"));
 app.use("/api/calculate-macros", aiLimiter, require("./routes/calculateMacros"));
 app.use("/api/transcribe",       aiLimiter, require("./routes/transcribe"));
 app.use("/api/analyze-image",    aiLimiter, require("./routes/analyzeImage"));
