@@ -59,6 +59,9 @@ app.use("/api/strava", stravaPublic);
 // Auth-Routen: Rate-Limit statt APP_SECRET
 app.use("/api/auth", authLimiter, require("./routes/auth"));
 
+// Admin-Routen: nur x-admin-key, kein JWT
+app.use("/api/admin", require("./routes/admin"));
+
 // Alle anderen Routen: JWT erforderlich
 app.use("/api", requireAuth);
 app.use("/api/analyze",          aiLimiter, require("./routes/analyze"));
@@ -76,7 +79,6 @@ app.use("/api/user-foods",    require("./routes/userFoods"));
 app.use("/api/body-weight",  require("./routes/bodyWeight"));
 app.use("/api/account",      require("./routes/account"));
 app.use("/api/subscription", require("./routes/subscription"));
-app.use("/api/admin",       require("./routes/admin"));
 app.use("/api/strava",      stravaAuth);
 
 const PORT = process.env.PORT || 3000;
