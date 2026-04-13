@@ -21,6 +21,7 @@ router.post("/", async (req, res) => {
       return res.json({
         found: true, source: "cache",
         name_de: f.name,
+        barcode: barcode,
         serving_g: f.serving_g ? parseFloat(f.serving_g) : null,
         kcal_100: f.kcal_100, protein_100: f.protein_100,
         carbs_100: f.carbs_100, fat_100: f.fat_100,
@@ -77,7 +78,7 @@ router.post("/", async (req, res) => {
         );
 
         console.log(`📦 Barcode ${barcode} von Open Food Facts: ${name}${serving_g ? ` (${serving_g}g/Portion)` : ""}`);
-        return res.json({ found: true, source: "off", name_de: name, serving_g,
+        return res.json({ found: true, source: "off", name_de: name, barcode: barcode, serving_g,
           kcal_100: r_kcal, protein_100: r_protein, carbs_100: r_carbs, fat_100: r_fat });
       }
 
@@ -87,10 +88,10 @@ router.post("/", async (req, res) => {
         const ai = await lookupFood(name, name, name, false);
         if (ai && ai.found) {
           await pool.query(
-            `UPDATE foods SET barcode = $1 WHERE name_lower = $2 AND barcode IS NULL`,
+            `UPDATE foods SET barcode = $1 WHERE LOWER(name) = $2 AND barcode IS NULL`,
             [barcode, name.toLowerCase()]
           );
-          return res.json({ found: true, source: ai.source, name_de: name,
+          return res.json({ found: true, source: ai.source, name_de: name, barcode: barcode,
             kcal_100: ai.kcal_100, protein_100: ai.protein_100,
             carbs_100: ai.carbs_100, fat_100: ai.fat_100 });
         }

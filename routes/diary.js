@@ -38,59 +38,88 @@ router.post("/", async (req, res) => {
     [req.userId, date, JSON.stringify(entry)]
   );
 
-  // Cache AI-estimated foods now that user has confirmed the values
+  // Cache AI-estimated and barcode-scanned foods into global foods table
   const items = entry.items || [];
   for (const item of items) {
-    if (item.source !== "ai") continue;
+    const isAi      = item.source === "ai";
+    const isBarcode = item.source === "barcode";
+    if (!isAi && !isBarcode) continue;
+
     const w = parseFloat(item.weight_g);
     if (!w || w <= 0) continue;
 
     const nameDe = (item.name_de || item.name || "").toLowerCase().trim();
     if (!nameDe) continue;
 
-    // Convert per-serving to per-100g
-    const kcal_100    = (item.kcal    || 0) / w * 100;
-    const protein_100 = (item.protein || 0) / w * 100;
-    const carbs_100   = (item.carbs   || 0) / w * 100;
-    const fat_100     = (item.fat     || 0) / w * 100;
+    // Per-100g: barcode items already carry kcal_100 etc., AI items need conversion
+    let kcal_100    = parseFloat(item.kcal_100);
+    let protein_100 = parseFloat(item.protein_100);
+    let carbs_100   = parseFloat(item.carbs_100);
+    let fat_100     = parseFloat(item.fat_100);
+    if (!(kcal_100 > 0)) {
+      kcal_100    = (item.kcal    || 0) / w * 100;
+      protein_100 = (item.protein || 0) / w * 100;
+      carbs_100   = (item.carbs   || 0) / w * 100;
+      fat_100     = (item.fat     || 0) / w * 100;
+    }
 
     // Basic plausibility check
     if (kcal_100 <= 0 || kcal_100 > 900) continue;
 
+    const barcode = item.barcode || null;
+    const source  = isBarcode ? "barcode" : "ai";
+
     try {
-      // Upsert into foods table (skip if already exists)
-      const existing = await pool.query(
-        "SELECT id FROM foods WHERE LOWER(name_de) = $1",
-        [nameDe]
-      );
+      // For barcode items: match by barcode if available, otherwise by name
+      let existing;
+      if (barcode) {
+        existing = await pool.query(
+          "SELECT id FROM foods WHERE barcode = $1",
+          [barcode]
+        );
+      }
+      if (!existing || existing.rows.length === 0) {
+        existing = await pool.query(
+          "SELECT id FROM foods WHERE LOWER(name) = $1",
+          [nameDe]
+        );
+      }
 
       let foodId;
       if (existing.rows.length > 0) {
         foodId = existing.rows[0].id;
+        // For barcode items: update barcode field if it was missing
+        if (barcode) {
+          await pool.query(
+            "UPDATE foods SET barcode = $1 WHERE id = $2 AND barcode IS NULL",
+            [barcode, foodId]
+          );
+        }
       } else {
-        const nameEn = (item.name_en || item.name || nameDe).trim();
         const inserted = await pool.query(
-          `INSERT INTO foods (name_de, name_en, kcal_100, protein_100, carbs_100, fat_100, aliases, source)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, 'ai') RETURNING id`,
-          [nameDe, nameEn, Math.round(kcal_100 * 10) / 10, Math.round(protein_100 * 10) / 10,
-           Math.round(carbs_100 * 10) / 10, Math.round(fat_100 * 10) / 10, []]
+          `INSERT INTO foods (name, kcal_100, protein_100, carbs_100, fat_100, aliases, source, barcode)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+          [nameDe,
+           Math.round(kcal_100 * 10) / 10, Math.round(protein_100 * 10) / 10,
+           Math.round(carbs_100 * 10) / 10, Math.round(fat_100 * 10) / 10,
+           [], source, barcode]
         );
         foodId = inserted.rows[0].id;
       }
 
       // Cache the search term
       const alreadyCached = await pool.query(
-        "SELECT id FROM food_searches WHERE search_term = $1",
+        "SELECT id FROM food_searches WHERE query_norm = $1",
         [nameDe]
       );
       if (alreadyCached.rows.length === 0) {
         await pool.query(
-          "INSERT INTO food_searches (search_term, food_id) VALUES ($1, $2)",
+          "INSERT INTO food_searches (query, food_id) VALUES ($1, $2) ON CONFLICT (query_norm) DO NOTHING",
           [nameDe, foodId]
         );
       }
 
-      console.log(`✅ Food cached after user save: ${nameDe} (${Math.round(kcal_100)} kcal/100g)`);
+      console.log(`✅ Food cached (${source}): ${nameDe} (${Math.round(kcal_100)} kcal/100g)${barcode ? ` [${barcode}]` : ""}`);
     } catch (cacheErr) {
       console.error(`⚠️ Could not cache food ${nameDe}:`, cacheErr.message);
       // Don't fail the diary save if caching fails
