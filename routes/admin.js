@@ -101,6 +101,21 @@ router.get("/dashboard", requireAdmin, async (req, res) => {
   }
 });
 
+// ─── GET /api/admin/debug-diary ──────────────────────────────────────────────
+router.get("/debug-diary", requireAdmin, async (req, res) => {
+  try {
+    const sample = await pool.query(`SELECT id, entry FROM diary_entries ORDER BY id DESC LIMIT 5`);
+    const keys   = await pool.query(`
+      SELECT DISTINCT jsonb_object_keys(entry) AS key, COUNT(*) AS count
+      FROM diary_entries
+      GROUP BY key ORDER BY count DESC
+    `);
+    res.json({ sample: sample.rows, keys: keys.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /api/admin/db-check ──────────────────────────────────────────────────
 router.get("/db-check", requireAdmin, async (req, res) => {
   try {
