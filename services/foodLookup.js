@@ -62,31 +62,35 @@ async function lookupFood(nameEn, nameDe, usdaQuery, estimateOnly = false) {
     return { ...cached.rows[0], from_cache: true };
   }
 
-  // 2. In foods Tabelle suchen (Name oder Synonym)
-  // ILIKE nur bei Begriffen ≥ 3 Zeichen, sonst nur exakter Treffer (verhindert z.B. "ei" → "Eiweiß")
-  const useIlike = searchTerm.length >= 3;
-  const nameMatch = await pool.query(
-    useIlike
-      ? `SELECT * FROM foods
-         WHERE (name_lower = $1 OR $1 = ANY(aliases) OR name_lower ILIKE $2)
-           AND kcal_100 > 0
-         ORDER BY
-           -- 1. Exakter Treffer oder Alias-Treffer hat immer Vorrang
-           CASE WHEN name_lower = $1 OR $1 = ANY(aliases) THEN 0
-                -- 2. Name beginnt mit Suchbegriff → guter Treffer (z.B. "paprika" → "Paprika rot")
-                WHEN name_lower LIKE $3 THEN 1
-                -- 3. Suchbegriff irgendwo im Namen → Fallback (z.B. "paprika" → "Mortadella mit Paprika")
-                ELSE 2
-           END,
-           -- 4. Innerhalb derselben Kategorie: kürzester Name bevorzugt (exaktester Match)
-           LENGTH(name_lower)
-         LIMIT 1`
-      : `SELECT * FROM foods
-         WHERE (name_lower = $1 OR $1 = ANY(aliases))
-           AND kcal_100 > 0
-         LIMIT 1`,
-    useIlike ? [searchTerm, `%${searchTerm}%`, `${searchTerm}%`] : [searchTerm]
+  // 2. In foods Tabelle suchen — dreistufig, um Fehlmatcher systemisch zu verhindern
+  // Stufe A: Exakter Treffer oder Name beginnt mit Suchbegriff → immer akzeptiert
+  let nameMatch = await pool.query(
+    `SELECT * FROM foods
+     WHERE (name_lower = $1 OR $1 = ANY(aliases) OR name_lower LIKE $2)
+       AND kcal_100 > 0
+     ORDER BY
+       CASE WHEN name_lower = $1 OR $1 = ANY(aliases) THEN 0 ELSE 1 END,
+       LENGTH(name_lower)
+     LIMIT 1`,
+    [searchTerm, `${searchTerm}%`]
   );
+
+  // Stufe B: "Enthält"-Suche — NUR wenn Similarity >= 0.40
+  // Verhindert z.B. "Paprika" → "Mortadella mit Paprika" (Similarity ~0.25 → abgelehnt)
+  if (nameMatch.rows.length === 0 && searchTerm.length >= 4) {
+    nameMatch = await pool.query(
+      `SELECT * FROM foods
+       WHERE name_lower ILIKE $2
+         AND kcal_100 > 0
+         AND SIMILARITY(name_lower, $1) >= 0.40
+       ORDER BY SIMILARITY(name_lower, $1) DESC, LENGTH(name_lower)
+       LIMIT 1`,
+      [searchTerm, `%${searchTerm}%`]
+    );
+    if (nameMatch.rows.length > 0) {
+      console.log(`🔍 Similarity match (${Math.round(parseFloat(nameMatch.rows[0].similarity || 0)*100)}%): "${searchTerm}" → "${nameMatch.rows[0].name}"`);
+    }
+  }
   if (nameMatch.rows.length > 0) {
     await saveFoodSearch(searchTerm, nameMatch.rows[0].id);
     console.log(`📦 DB name match: "${searchTerm}" → "${nameMatch.rows[0].name}"`);

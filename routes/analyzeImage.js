@@ -74,21 +74,32 @@ router.post("/", upload.single("image"), async (req, res) => {
     const items = await Promise.all(
       (parsed.items || []).map(async (item) => {
         const searchTerm = (item.name_de || item.name_en || "").toLowerCase().trim();
-        const useIlike = searchTerm.length >= 4;
 
-        // Personal foods first
-        const personalResult = await pool.query(
-          useIlike
-            ? `SELECT * FROM user_foods
-               WHERE user_id = $1
-                 AND (LOWER(name) = $2 OR LOWER(name) ILIKE $3)
-               ORDER BY
-                 CASE WHEN LOWER(name) = $2 THEN 0 ELSE 1 END,
-                 LENGTH(name) ASC
-               LIMIT 1`
-            : `SELECT * FROM user_foods WHERE user_id = $1 AND LOWER(name) = $2 LIMIT 1`,
-          useIlike ? [req.userId, searchTerm, `${searchTerm}%`] : [req.userId, searchTerm]
+        // Personal foods first — zweistufig gegen Fehlmatcher
+        // Stufe A: Exakt oder Name beginnt mit Suchbegriff
+        let personalResult = await pool.query(
+          `SELECT * FROM user_foods
+           WHERE user_id = $1
+             AND (LOWER(name) = $2 OR LOWER(name) LIKE $3)
+           ORDER BY
+             CASE WHEN LOWER(name) = $2 THEN 0 ELSE 1 END,
+             LENGTH(name) ASC
+           LIMIT 1`,
+          [req.userId, searchTerm, `${searchTerm}%`]
         );
+
+        // Stufe B: "Enthält"-Suche nur mit Similarity-Schwellenwert >= 0.40
+        if (personalResult.rows.length === 0 && searchTerm.length >= 4) {
+          personalResult = await pool.query(
+            `SELECT * FROM user_foods
+             WHERE user_id = $1
+               AND LOWER(name) ILIKE $2
+               AND SIMILARITY(LOWER(name), $3) >= 0.40
+             ORDER BY SIMILARITY(LOWER(name), $3) DESC, LENGTH(name) ASC
+             LIMIT 1`,
+            [req.userId, `%${searchTerm}%`, searchTerm]
+          );
+        }
         if (personalResult.rows.length > 0) {
           const pf = personalResult.rows[0];
           const macros = calcMacros(pf, item.weight_g);
