@@ -70,4 +70,19 @@ router.post("/init", async (req, res) => {
   }
 });
 
+// POST /api/subscription/activate
+// Testphase: Pro direkt freischalten (wird später durch RevenueCat ersetzt)
+router.post("/activate", async (req, res) => {
+  try {
+    await pool.query(
+      "UPDATE users SET is_pro = true WHERE id = $1",
+      [req.userId]
+    );
+    res.json({ isPro: true, isTrial: false, daysLeft: 0, hasAccess: true });
+  } catch (err) {
+    console.error("subscription activate error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 module.exports = router;
