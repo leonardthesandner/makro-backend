@@ -68,9 +68,12 @@ router.get("/dashboard", requireAdmin, async (req, res) => {
       `),
       // Top 15 häufigste Lebensmittel aus Tagebuch-Einträgen
       pool.query(`
-        SELECT entry->>'name_de' AS query, COUNT(*) AS count
+        SELECT
+          COALESCE(entry->>'name_de', entry->>'name') AS query,
+          COUNT(*) AS count
         FROM diary_entries
-        WHERE entry->>'name_de' IS NOT NULL
+        WHERE COALESCE(entry->>'name_de', entry->>'name') IS NOT NULL
+          AND COALESCE(entry->>'name_de', entry->>'name') != ''
         GROUP BY query
         ORDER BY count DESC
         LIMIT 15
