@@ -162,6 +162,9 @@ async function initDB() {
     CREATE INDEX IF NOT EXISTS strava_activities_user_date_idx ON strava_activities (user_id, date);
   `);
 
+  // pg_trgm für Ähnlichkeitssuche (Duplikat-Check)
+  await pool.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+
   // Fehlhafte Cache-Einträge für sehr kurze Suchbegriffe entfernen
   // (z.B. "ei" → traf fälschlicherweise "Eiweiß")
   await pool.query(`DELETE FROM food_searches WHERE LENGTH(query_norm) <= 3`);
