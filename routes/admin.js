@@ -102,6 +102,27 @@ router.get("/dashboard", requireAdmin, async (req, res) => {
   }
 });
 
+// ─── PATCH /api/admin/user/subscription ──────────────────────────────────────
+// Body: { email, is_pro, trial_start }  (trial_start: ISO-String oder null)
+router.patch("/user/subscription", requireAdmin, async (req, res) => {
+  const { email, is_pro, trial_start } = req.body;
+  if (!email) return res.status(400).json({ error: "email erforderlich" });
+  try {
+    const result = await pool.query(
+      `UPDATE users SET
+        is_pro      = COALESCE($2, is_pro),
+        trial_start = $3
+       WHERE email_lower = $1
+       RETURNING email, is_pro, trial_start`,
+      [email.toLowerCase(), is_pro ?? null, trial_start ?? null]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: "User nicht gefunden" });
+    res.json({ ok: true, user: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /api/admin/debug-diary ──────────────────────────────────────────────
 router.get("/debug-diary", requireAdmin, async (req, res) => {
   try {
