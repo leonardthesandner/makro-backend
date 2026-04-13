@@ -137,6 +137,8 @@ async function initDB() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS is_pro BOOLEAN NOT NULL DEFAULT false;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_start TIMESTAMPTZ;
 
+    ALTER TABLE foods ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT false;
+
     CREATE TABLE IF NOT EXISTS strava_tokens (
       user_id       TEXT PRIMARY KEY,
       athlete_id    BIGINT UNIQUE NOT NULL,
