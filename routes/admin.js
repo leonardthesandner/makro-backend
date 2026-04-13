@@ -66,14 +66,15 @@ router.get("/dashboard", requireAdmin, async (req, res) => {
         SELECT COALESCE(source, 'unbekannt') AS source, COUNT(*) AS count
         FROM foods GROUP BY source ORDER BY count DESC
       `),
-      // Top 15 häufigste Lebensmittel aus Tagebuch-Einträgen
+      // Top 15 häufigste Lebensmittel aus Tagebuch-Einträgen (items-Array entfalten)
       pool.query(`
         SELECT
-          COALESCE(entry->>'name_de', entry->>'name') AS query,
+          COALESCE(item->>'name_de', item->>'name') AS query,
           COUNT(*) AS count
-        FROM diary_entries
-        WHERE COALESCE(entry->>'name_de', entry->>'name') IS NOT NULL
-          AND COALESCE(entry->>'name_de', entry->>'name') != ''
+        FROM diary_entries,
+          jsonb_array_elements(entry->'items') AS item
+        WHERE COALESCE(item->>'name_de', item->>'name') IS NOT NULL
+          AND COALESCE(item->>'name_de', item->>'name') != ''
         GROUP BY query
         ORDER BY count DESC
         LIMIT 15
