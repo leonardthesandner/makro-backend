@@ -8,8 +8,11 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 function requireAdmin(req, res, next) {
   const key = req.headers["x-admin-key"];
-  if (!process.env.ADMIN_KEY || key !== process.env.ADMIN_KEY)
+  if (!process.env.ADMIN_KEY || key !== process.env.ADMIN_KEY) {
+    const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip;
+    console.warn(`🚨 Admin-Zugriff verweigert — IP: ${ip} | Path: ${req.path} | Zeit: ${new Date().toISOString()}`);
     return res.status(401).json({ error: "Unauthorized" });
+  }
   next();
 }
 

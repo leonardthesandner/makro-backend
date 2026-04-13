@@ -67,13 +67,24 @@ app.use("/api/strava", stravaPublic);
 // Auth-Routen: Rate-Limit statt APP_SECRET
 app.use("/api/auth", authLimiter, require("./routes/auth"));
 
-// Admin-Routen: x-admin-key + eigenes Rate Limiting
+// Admin-Routen: x-admin-key + striktes Rate Limiting
+// Allgemeines Limit: 30 Anfragen/15 Min (legitime Session hat max ~5-10 Calls gleichzeitig)
 const adminLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 60,
+  max: 30,
   message: { error: "Zu viele Admin-Anfragen." },
+  skipSuccessfulRequests: false,
 });
-app.use("/api/admin", adminLimiter, require("./routes/admin"));
+// Spezielles Auth-Limit: nur 5 Versuche/15 Min für jeden Endpoint-Zugriff mit falschem Key
+// verhindert Key-Brute-Force effektiv
+const adminAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { error: "Zu viele fehlgeschlagene Admin-Zugriffsversuche. Bitte 15 Minuten warten." },
+  skipSuccessfulRequests: true, // zählt nur 401-Responses
+  keyGenerator: (req) => req.ip,
+});
+app.use("/api/admin", adminAuthLimiter, adminLimiter, require("./routes/admin"));
 
 // Alle anderen Routen: JWT erforderlich
 app.use("/api", requireAuth);
