@@ -102,6 +102,26 @@ router.get("/dashboard", requireAdmin, async (req, res) => {
   }
 });
 
+// ─── GET /api/admin/users ─────────────────────────────────────────────────────
+router.get("/users", requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        u.id, u.email, u.created_at, u.is_pro, u.trial_start,
+        u.google_id IS NOT NULL AS is_google,
+        COUNT(d.id)::int AS diary_count,
+        MAX(d.created_at) AS last_active
+      FROM users u
+      LEFT JOIN diary_entries d ON d.user_id = u.id::text
+      GROUP BY u.id
+      ORDER BY u.created_at DESC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── PATCH /api/admin/user/subscription ──────────────────────────────────────
 // Body: { email, is_pro, trial_start }  (trial_start: ISO-String oder null)
 router.patch("/user/subscription", requireAdmin, async (req, res) => {
