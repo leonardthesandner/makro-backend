@@ -123,19 +123,28 @@ router.get("/users", requireAdmin, async (req, res) => {
 });
 
 // ─── PATCH /api/admin/user/subscription ──────────────────────────────────────
-// Body: { email, is_pro, trial_start }  (trial_start: ISO-String oder null)
+// Body: { email, mode: "pro" | "trial" | "free" }
 router.patch("/user/subscription", requireAdmin, async (req, res) => {
-  const { email, is_pro, trial_start } = req.body;
-  if (!email) return res.status(400).json({ error: "email erforderlich" });
+  const { email, mode } = req.body;
+  if (!email || !mode) return res.status(400).json({ error: "email und mode erforderlich" });
   try {
-    const result = await pool.query(
-      `UPDATE users SET
-        is_pro      = COALESCE($2, is_pro),
-        trial_start = $3
-       WHERE email_lower = $1
-       RETURNING email, is_pro, trial_start`,
-      [email.toLowerCase(), is_pro ?? null, trial_start ?? null]
-    );
+    let sql, params;
+    if (mode === "pro") {
+      // Pro freischalten, Trial-Start beibehalten
+      sql = `UPDATE users SET is_pro = true WHERE email_lower = $1 RETURNING email, is_pro, trial_start`;
+      params = [email.toLowerCase()];
+    } else if (mode === "trial") {
+      // Neuen Trial starten (ab jetzt)
+      sql = `UPDATE users SET is_pro = false, trial_start = NOW() WHERE email_lower = $1 RETURNING email, is_pro, trial_start`;
+      params = [email.toLowerCase()];
+    } else if (mode === "free") {
+      // Free: trial_start auf vor 10 Tagen setzen → abgelaufen, init überschreibt es nicht mehr
+      sql = `UPDATE users SET is_pro = false, trial_start = NOW() - INTERVAL '10 days' WHERE email_lower = $1 RETURNING email, is_pro, trial_start`;
+      params = [email.toLowerCase()];
+    } else {
+      return res.status(400).json({ error: "mode muss pro, trial oder free sein" });
+    }
+    const result = await pool.query(sql, params);
     if (!result.rows.length) return res.status(404).json({ error: "User nicht gefunden" });
     res.json({ ok: true, user: result.rows[0] });
   } catch (err) {
