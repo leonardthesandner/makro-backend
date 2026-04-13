@@ -79,9 +79,15 @@ router.post("/", upload.single("image"), async (req, res) => {
         // Personal foods first
         const personalResult = await pool.query(
           useIlike
-            ? `SELECT * FROM user_foods WHERE user_id = $1 AND (LOWER(name) = $2 OR LOWER(name) ILIKE $3) LIMIT 1`
+            ? `SELECT * FROM user_foods
+               WHERE user_id = $1
+                 AND (LOWER(name) = $2 OR LOWER(name) ILIKE $3)
+               ORDER BY
+                 CASE WHEN LOWER(name) = $2 THEN 0 ELSE 1 END,
+                 LENGTH(name) ASC
+               LIMIT 1`
             : `SELECT * FROM user_foods WHERE user_id = $1 AND LOWER(name) = $2 LIMIT 1`,
-          useIlike ? [req.userId, searchTerm, `%${searchTerm}%`] : [req.userId, searchTerm]
+          useIlike ? [req.userId, searchTerm, `${searchTerm}%`] : [req.userId, searchTerm]
         );
         if (personalResult.rows.length > 0) {
           const pf = personalResult.rows[0];

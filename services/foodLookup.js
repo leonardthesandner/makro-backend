@@ -63,25 +63,29 @@ async function lookupFood(nameEn, nameDe, usdaQuery, estimateOnly = false) {
   }
 
   // 2. In foods Tabelle suchen (Name oder Synonym)
-  // ILIKE nur bei Begriffen ≥ 4 Zeichen, sonst nur exakter Treffer (verhindert z.B. "ei" → "Eiweiß")
-  const useIlike = searchTerm.length >= 4;
+  // ILIKE nur bei Begriffen ≥ 3 Zeichen, sonst nur exakter Treffer (verhindert z.B. "ei" → "Eiweiß")
+  const useIlike = searchTerm.length >= 3;
   const nameMatch = await pool.query(
     useIlike
       ? `SELECT * FROM foods
          WHERE (name_lower = $1 OR $1 = ANY(aliases) OR name_lower ILIKE $2)
            AND kcal_100 > 0
          ORDER BY
-           -- 1. Exakter Treffer hat immer Vorrang
-           CASE WHEN name_lower = $1 OR $1 = ANY(aliases) THEN 0 ELSE 1 END,
-           -- 2. Bei ILIKE: bevorzuge den Eintrag dessen Name-Länge am nächsten am Suchbegriff ist
-           --    → "Basmati Reis ungekocht" (22) schlägt "Basmati Reis" (12) bei Suche "basmati reis ungekocht" (21)
-           ABS(LENGTH(name_lower) - LENGTH($1))
+           -- 1. Exakter Treffer oder Alias-Treffer hat immer Vorrang
+           CASE WHEN name_lower = $1 OR $1 = ANY(aliases) THEN 0
+                -- 2. Name beginnt mit Suchbegriff → guter Treffer (z.B. "paprika" → "Paprika rot")
+                WHEN name_lower LIKE $3 THEN 1
+                -- 3. Suchbegriff irgendwo im Namen → Fallback (z.B. "paprika" → "Mortadella mit Paprika")
+                ELSE 2
+           END,
+           -- 4. Innerhalb derselben Kategorie: kürzester Name bevorzugt (exaktester Match)
+           LENGTH(name_lower)
          LIMIT 1`
       : `SELECT * FROM foods
          WHERE (name_lower = $1 OR $1 = ANY(aliases))
            AND kcal_100 > 0
          LIMIT 1`,
-    useIlike ? [searchTerm, `%${searchTerm}%`] : [searchTerm]
+    useIlike ? [searchTerm, `%${searchTerm}%`, `${searchTerm}%`] : [searchTerm]
   );
   if (nameMatch.rows.length > 0) {
     await saveFoodSearch(searchTerm, nameMatch.rows[0].id);

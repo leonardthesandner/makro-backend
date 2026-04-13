@@ -72,12 +72,19 @@ router.post("/", async (req, res) => {
 
       // 0. Nutzereigene Datenbank zuerst prüfen
       const searchTerm = (item.name_de || item.name_en || "").toLowerCase().trim();
-      const useIlike = searchTerm.length >= 4;
+      const useIlike = searchTerm.length >= 3;
       const personalResult = await pool.query(
         useIlike
-          ? `SELECT * FROM user_foods WHERE user_id = $1 AND (LOWER(name) = $2 OR LOWER(name) ILIKE $3) LIMIT 1`
+          ? `SELECT * FROM user_foods
+             WHERE user_id = $1
+               AND (LOWER(name) = $2 OR LOWER(name) ILIKE $3)
+             ORDER BY
+               CASE WHEN LOWER(name) = $2 THEN 0 ELSE 1 END,
+               LENGTH(name) ASC
+             LIMIT 1`
           : `SELECT * FROM user_foods WHERE user_id = $1 AND LOWER(name) = $2 LIMIT 1`,
-        useIlike ? [req.userId, searchTerm, `%${searchTerm}%`] : [req.userId, searchTerm]
+        // $3 = 'term%' (starts-with) statt '%term%' (anywhere) → verhindert Fehlmatcher wie "Mortadella mit Paprika" bei Suche "Paprika"
+        useIlike ? [req.userId, searchTerm, `${searchTerm}%`] : [req.userId, searchTerm]
       );
       if (personalResult.rows.length > 0) {
         const pf = personalResult.rows[0];
