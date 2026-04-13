@@ -12,7 +12,7 @@ const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 router.post("/register", async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: "Email und Passwort erforderlich" });
-  if (password.length < 6) return res.status(400).json({ error: "Passwort mindestens 6 Zeichen" });
+  if (password.length < 8) return res.status(400).json({ error: "Passwort mindestens 8 Zeichen" });
 
   try {
     const exists = await pool.query("SELECT id FROM users WHERE email_lower = $1", [email.toLowerCase()]);
@@ -52,7 +52,7 @@ router.post("/login", async (req, res) => {
       return res.status(403).json({ error: "email_not_verified", message: "Bitte bestätige zuerst deine E-Mail-Adresse." });
     }
 
-    const token = jwt.sign({ user_id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "30d" });
+    const token = jwt.sign({ user_id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "7d" });
     console.log(`🔑 Login: ${user.email}`);
     res.json({ token, user: { id: user.id, email: user.email } });
   } catch (err) {
@@ -108,7 +108,7 @@ router.post("/forgot-password", async (req, res) => {
 router.post("/reset-password", async (req, res) => {
   const { token, password } = req.body;
   if (!token || !password) return res.status(400).json({ error: "Token und Passwort erforderlich" });
-  if (password.length < 6) return res.status(400).json({ error: "Passwort mindestens 6 Zeichen" });
+  if (password.length < 8) return res.status(400).json({ error: "Passwort mindestens 8 Zeichen" });
   try {
     const result = await pool.query(
       "SELECT id FROM users WHERE reset_token = $1 AND reset_token_expires > NOW()",
@@ -159,7 +159,7 @@ router.post("/google", async (req, res) => {
     }
 
     const user  = result.rows[0];
-    const token = jwt.sign({ user_id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "30d" });
+    const token = jwt.sign({ user_id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "7d" });
     console.log(`🔑 Google-Login: ${user.email}`);
     res.json({ token, user: { id: user.id, email: user.email } });
   } catch (err) {

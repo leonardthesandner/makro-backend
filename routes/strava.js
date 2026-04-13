@@ -1,4 +1,5 @@
 const express = require("express");
+const crypto = require("crypto");
 const { pool } = require("../db");
 const { requireAuth } = require("../middleware/auth");
 
@@ -129,7 +130,7 @@ publicRouter.get("/connect", (req, res) => {
   } catch {
     return res.status(401).json({ error: "Nicht angemeldet" });
   }
-  const state = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const state = crypto.randomBytes(16).toString("hex");
   oauthStates.set(state, { userId, ts: Date.now() });
 
   const params = new URLSearchParams({

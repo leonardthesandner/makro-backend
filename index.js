@@ -2,10 +2,17 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const rateLimit = require("express-rate-limit");
+const helmet = require("helmet");
 const { initDB } = require("./db");
 const { requireAuth } = require("./middleware/auth");
 
 const app = express();
+
+// Security headers
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: false, // CSP separat konfigurieren falls nötig
+}));
 
 const ALLOWED_ORIGINS = [
   "https://leonardthesandner.github.io",
@@ -50,7 +57,8 @@ const aiLimiter = rateLimit({
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 
 // E-Mail-Verifikation (öffentlich, kein Auth nötig)
-app.use("/verify", require("./routes/verify"));
+const verifyLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: "Zu viele Anfragen." } });
+app.use("/verify", verifyLimiter, require("./routes/verify"));
 
 // Strava public routes (webhook + OAuth callback — kein JWT nötig)
 const { publicRouter: stravaPublic, authRouter: stravaAuth } = require("./routes/strava");
@@ -59,8 +67,13 @@ app.use("/api/strava", stravaPublic);
 // Auth-Routen: Rate-Limit statt APP_SECRET
 app.use("/api/auth", authLimiter, require("./routes/auth"));
 
-// Admin-Routen: nur x-admin-key, kein JWT
-app.use("/api/admin", require("./routes/admin"));
+// Admin-Routen: x-admin-key + eigenes Rate Limiting
+const adminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  message: { error: "Zu viele Admin-Anfragen." },
+});
+app.use("/api/admin", adminLimiter, require("./routes/admin"));
 
 // Alle anderen Routen: JWT erforderlich
 app.use("/api", requireAuth);
