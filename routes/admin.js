@@ -33,6 +33,68 @@ router.get("/stats", requireAdmin, async (req, res) => {
   }
 });
 
+// ─── GET /api/admin/dashboard ────────────────────────────────────────────────
+router.get("/dashboard", requireAdmin, async (req, res) => {
+  try {
+    const [
+      usersOverTime, diaryOverTime, searchesOverTime,
+      foodsBySource, topSearches, activeUsers
+    ] = await Promise.all([
+      // Neue Nutzer pro Woche (letzte 12 Wochen)
+      pool.query(`
+        SELECT DATE_TRUNC('week', created_at) AS week, COUNT(*) AS count
+        FROM users
+        WHERE created_at >= NOW() - INTERVAL '12 weeks'
+        GROUP BY week ORDER BY week
+      `),
+      // Tagebuch-Einträge pro Tag (letzte 30 Tage)
+      pool.query(`
+        SELECT DATE_TRUNC('day', created_at) AS day, COUNT(*) AS count
+        FROM diary_entries
+        WHERE created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY day ORDER BY day
+      `),
+      // Suchanfragen pro Tag (letzte 30 Tage)
+      pool.query(`
+        SELECT DATE_TRUNC('day', created_at) AS day, COUNT(*) AS count
+        FROM food_searches
+        WHERE created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY day ORDER BY day
+      `),
+      // Lebensmittel nach Quelle
+      pool.query(`
+        SELECT COALESCE(source, 'unbekannt') AS source, COUNT(*) AS count
+        FROM foods GROUP BY source ORDER BY count DESC
+      `),
+      // Top 15 Suchanfragen
+      pool.query(`
+        SELECT query, COUNT(*) AS count
+        FROM food_searches
+        GROUP BY query ORDER BY count DESC LIMIT 15
+      `),
+      // Aktivste Nutzer (Tagebuch-Einträge)
+      pool.query(`
+        SELECT u.email, COUNT(d.id) AS entries
+        FROM users u
+        LEFT JOIN diary_entries d ON d.user_id = u.id::text
+        GROUP BY u.email ORDER BY entries DESC LIMIT 10
+      `),
+    ]);
+
+    res.json({
+      usersOverTime:   usersOverTime.rows,
+      diaryOverTime:   diaryOverTime.rows,
+      searchesOverTime: searchesOverTime.rows,
+      foodsBySource:   foodsBySource.rows,
+      topSearches:     topSearches.rows,
+      activeUsers:     activeUsers.rows,
+    });
+  } catch (err) {
+    console.error("dashboard error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /api/admin/db-check ──────────────────────────────────────────────────
 router.get("/db-check", requireAdmin, async (req, res) => {
   try {
