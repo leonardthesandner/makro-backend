@@ -37,6 +37,11 @@ app.use(cors({
 app.options("*", cors());
 app.use(express.json({ limit: "50kb" }));
 
+// Trust proxy: Railway/Cloudflare setzen X-Forwarded-For korrekt
+// → Rate-Limiter nutzt echte Client-IP statt Proxy-IP
+// → verhindert IP-Spoofing-Bypass via gefälschtem X-Forwarded-For
+app.set("trust proxy", 1);
+
 // Rate Limiter
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 Minuten
