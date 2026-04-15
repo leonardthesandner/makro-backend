@@ -13,14 +13,14 @@ router.get("/", async (req, res) => {
 
 // POST /api/recipes
 router.post("/", async (req, res) => {
-  const { name, total_weight, kcal_total, protein_total, carbs_total, fat_total, ingredients, items, portion_g } = req.body;
+  const { name, total_weight, kcal_total, protein_total, carbs_total, fat_total, ingredients, items, portion_g, portion_count } = req.body;
   if (!name || !total_weight) return res.status(400).json({ error: "name und total_weight erforderlich" });
 
   const tw = parseFloat(total_weight);
   const result = await pool.query(
     `INSERT INTO recipes (user_id, name, total_weight, kcal_total, protein_total, carbs_total, fat_total,
-       kcal_100, protein_100, carbs_100, fat_100, ingredients, items, portion_g)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+       kcal_100, protein_100, carbs_100, fat_100, ingredients, items, portion_g, portion_count)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
      RETURNING *`,
     [
       req.userId, name, tw,
@@ -32,6 +32,7 @@ router.post("/", async (req, res) => {
       ingredients,
       items ? JSON.stringify(items) : null,
       portion_g ? parseFloat(portion_g) : null,
+      portion_count ? parseInt(portion_count) : null,
     ]
   );
   res.status(201).json(result.rows[0]);
@@ -39,15 +40,15 @@ router.post("/", async (req, res) => {
 
 // PUT /api/recipes/:id
 router.put("/:id", async (req, res) => {
-  const { name, total_weight, kcal_total, protein_total, carbs_total, fat_total, ingredients, items, portion_g } = req.body;
+  const { name, total_weight, kcal_total, protein_total, carbs_total, fat_total, ingredients, items, portion_g, portion_count } = req.body;
   if (!name || !total_weight) return res.status(400).json({ error: "name und total_weight erforderlich" });
 
   const tw = parseFloat(total_weight);
   const result = await pool.query(
     `UPDATE recipes SET
        name=$1, total_weight=$2, kcal_total=$3, protein_total=$4, carbs_total=$5, fat_total=$6,
-       kcal_100=$7, protein_100=$8, carbs_100=$9, fat_100=$10, ingredients=$11, items=$12, portion_g=$13
-     WHERE id=$14 AND user_id=$15
+       kcal_100=$7, protein_100=$8, carbs_100=$9, fat_100=$10, ingredients=$11, items=$12, portion_g=$13, portion_count=$14
+     WHERE id=$15 AND user_id=$16
      RETURNING *`,
     [
       name, tw, kcal_total, protein_total, carbs_total, fat_total,
@@ -58,6 +59,7 @@ router.put("/:id", async (req, res) => {
       ingredients,
       items ? JSON.stringify(items) : null,
       portion_g ? parseFloat(portion_g) : null,
+      portion_count ? parseInt(portion_count) : null,
       req.params.id, req.userId,
     ]
   );
