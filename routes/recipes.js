@@ -67,6 +67,17 @@ router.put("/:id", async (req, res) => {
   res.json(result.rows[0]);
 });
 
+// PATCH /api/recipes/:id/favorite
+router.patch("/:id/favorite", async (req, res) => {
+  const { is_favorite } = req.body;
+  const result = await pool.query(
+    "UPDATE recipes SET is_favorite=$1 WHERE id=$2 AND user_id=$3 RETURNING *",
+    [is_favorite, req.params.id, req.userId]
+  );
+  if (!result.rows.length) return res.status(404).json({ error: "nicht gefunden" });
+  res.json(result.rows[0]);
+});
+
 // DELETE /api/recipes/:id
 router.delete("/:id", async (req, res) => {
   await pool.query("DELETE FROM recipes WHERE id = $1 AND user_id = $2", [req.params.id, req.userId]);
