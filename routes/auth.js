@@ -7,6 +7,8 @@ const { pool } = require("../db");
 const { sendVerificationEmail, sendPasswordResetEmail } = require("../services/email");
 const { OAuth2Client } = require("google-auth-library");
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const appleSignin = require("apple-signin-auth");
+const APPLE_PRIVATE_KEY = (process.env.APPLE_PRIVATE_KEY || "").replace(/\\n/g, "\n");
 
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
@@ -165,6 +167,44 @@ router.post("/google", async (req, res) => {
   } catch (err) {
     console.error("Google-Auth error:", err);
     res.status(401).json({ error: "Google-Anmeldung fehlgeschlagen" });
+  }
+});
+
+// POST /api/auth/apple
+router.post("/apple", async (req, res) => {
+  const { id_token, user } = req.body;
+  if (!id_token) return res.status(400).json({ error: "Apple-Token fehlt" });
+  try {
+    const appleUser = await appleSignin.verifyIdToken(id_token, {
+      audience: process.env.APPLE_CLIENT_ID,
+      ignoreExpiration: false,
+    });
+
+    const appleId = appleUser.sub;
+    const email   = appleUser.email || (user && user.email) || `apple_${appleId}@privaterelay.appleid.com`;
+
+    let result = await pool.query("SELECT * FROM users WHERE apple_id = $1", [appleId]);
+
+    if (result.rows.length === 0) {
+      const byEmail = await pool.query("SELECT * FROM users WHERE email_lower = $1", [email.toLowerCase()]);
+      if (byEmail.rows.length > 0) {
+        await pool.query("UPDATE users SET apple_id = $1, email_verified = true WHERE id = $2", [appleId, byEmail.rows[0].id]);
+        result = await pool.query("SELECT * FROM users WHERE id = $1", [byEmail.rows[0].id]);
+      } else {
+        result = await pool.query(
+          "INSERT INTO users (email, apple_id, email_verified) VALUES ($1, $2, true) RETURNING *",
+          [email.toLowerCase(), appleId]
+        );
+      }
+    }
+
+    const dbUser = result.rows[0];
+    const token  = jwt.sign({ user_id: dbUser.id, email: dbUser.email }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    console.log(`🍎 Apple-Login: ${dbUser.email}`);
+    res.json({ token, user: { id: dbUser.id, email: dbUser.email } });
+  } catch (err) {
+    console.error("Apple-Auth error:", err);
+    res.status(401).json({ error: "Apple-Anmeldung fehlgeschlagen" });
   }
 });
 

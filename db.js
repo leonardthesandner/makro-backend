@@ -138,6 +138,8 @@ async function initDB() {
 
     ALTER TABLE users ADD COLUMN IF NOT EXISTS is_pro BOOLEAN NOT NULL DEFAULT false;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_start TIMESTAMPTZ;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_id TEXT;
+    CREATE UNIQUE INDEX IF NOT EXISTS users_apple_id_idx ON users (apple_id) WHERE apple_id IS NOT NULL;
 
     ALTER TABLE foods ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT false;
 
