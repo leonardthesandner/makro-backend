@@ -72,24 +72,39 @@ app.use("/api/strava", stravaPublic);
 // Auth-Routen: Rate-Limit statt APP_SECRET
 app.use("/api/auth", authLimiter, require("./routes/auth"));
 
-// Admin-Routen: x-admin-key + striktes Rate Limiting
-// Allgemeines Limit: 30 Anfragen/15 Min (legitime Session hat max ~5-10 Calls gleichzeitig)
+// Admin-Routen: stufenweise IP-Sperre nach Fehlversuchen
+// Stufe 1: 5 Fehlversuche → 30 Sekunden gesperrt
+// Stufe 2: nächste 5 Fehlversuche → 5 Minuten gesperrt
+// Stufe 3: nächste 5 Fehlversuche → 30 Minuten gesperrt
+const adminAuthLimiter1 = rateLimit({
+  windowMs: 30 * 1000,           // 30 Sekunden
+  max: 5,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => `admin_l1_${req.ip}`,
+  message: { error: "Zu viele Fehlversuche. Bitte 30 Sekunden warten." },
+});
+const adminAuthLimiter2 = rateLimit({
+  windowMs: 5 * 60 * 1000,       // 5 Minuten
+  max: 10,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => `admin_l2_${req.ip}`,
+  message: { error: "Zu viele Fehlversuche. Bitte 5 Minuten warten." },
+});
+const adminAuthLimiter3 = rateLimit({
+  windowMs: 30 * 60 * 1000,      // 30 Minuten
+  max: 15,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => `admin_l3_${req.ip}`,
+  message: { error: "Zu viele Fehlversuche. IP für 30 Minuten gesperrt." },
+});
+// Allgemeines Limit: 30 Anfragen/15 Min für eingeloggte Session
 const adminLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,
   message: { error: "Zu viele Admin-Anfragen." },
   skipSuccessfulRequests: false,
 });
-// Spezielles Auth-Limit: nur 5 Versuche/15 Min für jeden Endpoint-Zugriff mit falschem Key
-// verhindert Key-Brute-Force effektiv
-const adminAuthLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  message: { error: "Zu viele fehlgeschlagene Admin-Zugriffsversuche. Bitte 15 Minuten warten." },
-  skipSuccessfulRequests: true, // zählt nur 401-Responses
-  keyGenerator: (req) => req.ip,
-});
-app.use("/api/admin", adminAuthLimiter, adminLimiter, require("./routes/admin"));
+app.use("/api/admin", adminAuthLimiter1, adminAuthLimiter2, adminAuthLimiter3, adminLimiter, require("./routes/admin"));
 
 // RevenueCat webhook (kein JWT – validiert eigenen Shared Secret)
 // Muss VOR requireAuth registriert sein!
