@@ -8,6 +8,24 @@ const { lookupFood } = require("../services/foodLookup");
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// ─── Haiku macro estimator ────────────────────────────────────────────────────
+async function estimateMacros(name) {
+  try {
+    // 1. Try DB lookup first (free + fast)
+    const food = await lookupFood(name, name, name, false).catch(() => null);
+    if (food) return { kcal_100: food.kcal_100, protein_100: food.protein_100, carbs_100: food.carbs_100, fat_100: food.fat_100 };
+
+    // 2. Haiku estimate
+    const msg = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 100,
+      messages: [{ role: "user", content: `Nährwerte pro 100g für "${name}". Nur JSON, kein Markdown: {"kcal_100":X,"protein_100":X,"carbs_100":X,"fat_100":X}` }],
+    });
+    const raw = msg.content.map(b => b.text || "").join("").trim();
+    return JSON.parse(raw.replace(/```json|```/g, "").trim());
+  } catch { return null; }
+}
+
 // ─── GET /api/pantry ──────────────────────────────────────────────────────────
 router.get("/", async (req, res) => {
   try {
@@ -23,9 +41,14 @@ router.get("/", async (req, res) => {
 
 // ─── POST /api/pantry ─────────────────────────────────────────────────────────
 router.post("/", async (req, res) => {
-  const { name, quantity, unit, category, food_id, kcal_100, protein_100, carbs_100, fat_100 } = req.body;
+  let { name, quantity, unit, category, food_id, kcal_100, protein_100, carbs_100, fat_100 } = req.body;
   if (!name) return res.status(400).json({ error: "Name erforderlich" });
   try {
+    // Auto-analyze macros if not provided
+    if (!kcal_100) {
+      const macros = await estimateMacros(name.trim());
+      if (macros) { kcal_100 = macros.kcal_100; protein_100 = macros.protein_100; carbs_100 = macros.carbs_100; fat_100 = macros.fat_100; }
+    }
     const result = await pool.query(
       `INSERT INTO pantry_items (user_id, name, quantity, unit, category, food_id, kcal_100, protein_100, carbs_100, fat_100)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
@@ -46,11 +69,17 @@ router.post("/bulk", async (req, res) => {
     const results = [];
     for (const item of items) {
       if (!item.name) continue;
+      let { kcal_100, protein_100, carbs_100, fat_100 } = item;
+      // Auto-analyze macros if missing
+      if (!kcal_100) {
+        const macros = await estimateMacros(item.name.trim());
+        if (macros) { kcal_100 = macros.kcal_100; protein_100 = macros.protein_100; carbs_100 = macros.carbs_100; fat_100 = macros.fat_100; }
+      }
       const r = await pool.query(
         `INSERT INTO pantry_items (user_id, name, quantity, unit, category, food_id, kcal_100, protein_100, carbs_100, fat_100)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
         [req.userId, item.name.trim(), item.quantity ?? 1, item.unit || "Stück", item.category || "pantry",
-         item.food_id || null, item.kcal_100 || null, item.protein_100 || null, item.carbs_100 || null, item.fat_100 || null]
+         item.food_id || null, kcal_100 || null, protein_100 || null, carbs_100 || null, fat_100 || null]
       );
       results.push(r.rows[0]);
     }
