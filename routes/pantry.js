@@ -13,7 +13,7 @@ async function estimateMacros(name) {
   try {
     // 1. Try DB lookup first (free + fast)
     const food = await lookupFood(name, name, name, false).catch(() => null);
-    if (food) return { kcal_100: food.kcal_100, protein_100: food.protein_100, carbs_100: food.carbs_100, fat_100: food.fat_100 };
+    if (food) return { kcal_100: food.kcal_100, protein_100: food.protein_100, carbs_100: food.carbs_100, fat_100: food.fat_100, macro_source: "db" };
 
     // 2. Haiku estimate
     const msg = await client.messages.create({
@@ -22,7 +22,8 @@ async function estimateMacros(name) {
       messages: [{ role: "user", content: `Nährwerte pro 100g für "${name}". Nur JSON, kein Markdown: {"kcal_100":X,"protein_100":X,"carbs_100":X,"fat_100":X}` }],
     });
     const raw = msg.content.map(b => b.text || "").join("").trim();
-    return JSON.parse(raw.replace(/```json|```/g, "").trim());
+    const macros = JSON.parse(raw.replace(/```json|```/g, "").trim());
+    return { ...macros, macro_source: "ki" };
   } catch { return null; }
 }
 
@@ -44,16 +45,17 @@ router.post("/", async (req, res) => {
   let { name, quantity, unit, category, food_id, kcal_100, protein_100, carbs_100, fat_100 } = req.body;
   if (!name) return res.status(400).json({ error: "Name erforderlich" });
   try {
+    let macro_source = req.body.macro_source || null;
     // Auto-analyze macros if not provided
     if (!kcal_100) {
       const macros = await estimateMacros(name.trim());
-      if (macros) { kcal_100 = macros.kcal_100; protein_100 = macros.protein_100; carbs_100 = macros.carbs_100; fat_100 = macros.fat_100; }
+      if (macros) { kcal_100 = macros.kcal_100; protein_100 = macros.protein_100; carbs_100 = macros.carbs_100; fat_100 = macros.fat_100; macro_source = macros.macro_source; }
     }
     const result = await pool.query(
-      `INSERT INTO pantry_items (user_id, name, quantity, unit, category, food_id, kcal_100, protein_100, carbs_100, fat_100)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      `INSERT INTO pantry_items (user_id, name, quantity, unit, category, food_id, kcal_100, protein_100, carbs_100, fat_100, macro_source)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
       [req.userId, name.trim(), quantity ?? 1, unit || "Stück", category || "pantry",
-       food_id || null, kcal_100 || null, protein_100 || null, carbs_100 || null, fat_100 || null]
+       food_id || null, kcal_100 || null, protein_100 || null, carbs_100 || null, fat_100 || null, macro_source]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -69,17 +71,19 @@ router.post("/bulk", async (req, res) => {
     const results = [];
     for (const item of items) {
       if (!item.name) continue;
-      let { kcal_100, protein_100, carbs_100, fat_100 } = item;
+      let { kcal_100, protein_100, carbs_100, fat_100, macro_source } = item;
       // Auto-analyze macros if missing
       if (!kcal_100) {
         const macros = await estimateMacros(item.name.trim());
-        if (macros) { kcal_100 = macros.kcal_100; protein_100 = macros.protein_100; carbs_100 = macros.carbs_100; fat_100 = macros.fat_100; }
+        if (macros) { kcal_100 = macros.kcal_100; protein_100 = macros.protein_100; carbs_100 = macros.carbs_100; fat_100 = macros.fat_100; macro_source = macros.macro_source; }
+      } else if (item.matched) {
+        macro_source = "db";
       }
       const r = await pool.query(
-        `INSERT INTO pantry_items (user_id, name, quantity, unit, category, food_id, kcal_100, protein_100, carbs_100, fat_100)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+        `INSERT INTO pantry_items (user_id, name, quantity, unit, category, food_id, kcal_100, protein_100, carbs_100, fat_100, macro_source)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
         [req.userId, item.name.trim(), item.quantity ?? 1, item.unit || "Stück", item.category || "pantry",
-         item.food_id || null, kcal_100 || null, protein_100 || null, carbs_100 || null, fat_100 || null]
+         item.food_id || null, kcal_100 || null, protein_100 || null, carbs_100 || null, fat_100 || null, macro_source || null]
       );
       results.push(r.rows[0]);
     }
@@ -193,15 +197,26 @@ router.post("/scan", upload.single("image"), async (req, res) => {
           { type: "image", source: { type: "base64", media_type: mediaType, data: imageBase64 } },
           { type: "text", text: `Du analysierst einen deutschen Kassenbon. Extrahiere alle Lebensmittel.
 
-Für jedes Lebensmittel gib zurück:
-- name: Produktname auf Deutsch (kurz und klar, z.B. "Vollmilch", "Hähnchenbrust", "Nudeln")
-- quantity: Menge als Zahl (Standard: 1)
-- unit: Einheit (z.B. "L", "kg", "g", "Stück", "Packung")
+WICHTIG: Erkenne automatisch die Packungsgröße aus dem Produktnamen auf dem Bon.
+Beispiele:
+- "Vollmilch 3,5% 1L" → name: "Vollmilch 3,5%", quantity: 1, unit: "L"
+- "Nudeln 500g" → name: "Nudeln", quantity: 500, unit: "g"
+- "Joghurt 6x150g" → name: "Joghurt", quantity: 900, unit: "g"
+- "Mineralwasser 1,5L" → name: "Mineralwasser", quantity: 1.5, unit: "L"
+- "Eier 10 Stück" → name: "Eier", quantity: 10, unit: "Stück"
+- "Butter 250g" → name: "Butter", quantity: 250, unit: "g"
+
+Falls keine Größe erkennbar: quantity: 1, unit: "Stück"
+
+Für jedes Lebensmittel:
+- name: Produktname auf Deutsch (ohne Größenangabe)
+- quantity: Packungsgröße als Zahl
+- unit: Einheit (g, kg, ml, L, Stück, Packung)
 - category: "fridge" für Kühlware (Milch, Joghurt, Fleisch, Wurst, Käse, Eier, Obst, Gemüse) oder "pantry" für Trockenwaren (Nudeln, Reis, Konserven, Öl, Getränke, Süßigkeiten)
 - barcode: EAN-Barcode falls auf dem Bon sichtbar, sonst null
 
 Antworte NUR mit einem JSON-Array ohne Markdown:
-[{"name":"Vollmilch","quantity":1,"unit":"L","category":"fridge","barcode":null}]` }
+[{"name":"Vollmilch 3,5%","quantity":1,"unit":"L","category":"fridge","barcode":null}]` }
         ]
       }]
     });
@@ -226,16 +241,17 @@ Antworte NUR mit einem JSON-Array ohne Markdown:
       }
 
       return {
-        name:        item.name,
-        quantity:    item.quantity || 1,
-        unit:        item.unit || "Stück",
-        category:    item.category || "pantry",
-        food_id:     food?.id    || null,
-        kcal_100:    food?.kcal_100    ?? null,
-        protein_100: food?.protein_100 ?? null,
-        carbs_100:   food?.carbs_100   ?? null,
-        fat_100:     food?.fat_100     ?? null,
-        matched:     !!food,
+        name:         item.name,
+        quantity:     item.quantity || 1,
+        unit:         item.unit || "Stück",
+        category:     item.category || "pantry",
+        food_id:      food?.id    || null,
+        kcal_100:     food?.kcal_100    ?? null,
+        protein_100:  food?.protein_100 ?? null,
+        carbs_100:    food?.carbs_100   ?? null,
+        fat_100:      food?.fat_100     ?? null,
+        matched:      !!food,
+        macro_source: food ? "db" : null,
       };
     }));
 

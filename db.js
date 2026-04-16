@@ -183,6 +183,7 @@ async function initDB() {
       updated_at  TIMESTAMPTZ DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS pantry_items_user_id_idx ON pantry_items (user_id);
+    ALTER TABLE pantry_items ADD COLUMN IF NOT EXISTS macro_source TEXT;
   `);
 
   // pg_trgm für Ähnlichkeitssuche (Duplikat-Check)
