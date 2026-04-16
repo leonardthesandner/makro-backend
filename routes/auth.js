@@ -175,8 +175,13 @@ router.post("/apple", async (req, res) => {
   const { id_token, user } = req.body;
   if (!id_token) return res.status(400).json({ error: "Apple-Token fehlt" });
   try {
+    // Accept both web Service ID and native iOS bundle ID as valid audience
+    const audiences = [
+      process.env.APPLE_CLIENT_ID,   // com.makro-tracking.web  (JS SDK)
+      "com.makro-tracking.app",       // iOS bundle ID           (native SDK)
+    ].filter(Boolean);
     const appleUser = await appleSignin.verifyIdToken(id_token, {
-      audience: process.env.APPLE_CLIENT_ID,
+      audience: audiences,
       ignoreExpiration: false,
     });
 
