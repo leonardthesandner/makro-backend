@@ -166,6 +166,23 @@ async function initDB() {
       created_at    TIMESTAMPTZ DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS strava_activities_user_date_idx ON strava_activities (user_id, date);
+
+    CREATE TABLE IF NOT EXISTS pantry_items (
+      id          SERIAL PRIMARY KEY,
+      user_id     TEXT NOT NULL,
+      food_id     INTEGER REFERENCES foods(id) ON DELETE SET NULL,
+      name        TEXT NOT NULL,
+      quantity    DECIMAL(10,3) NOT NULL DEFAULT 1,
+      unit        TEXT NOT NULL DEFAULT 'Stück',
+      category    TEXT NOT NULL DEFAULT 'pantry',
+      kcal_100    DECIMAL(8,2),
+      protein_100 DECIMAL(8,2),
+      carbs_100   DECIMAL(8,2),
+      fat_100     DECIMAL(8,2),
+      created_at  TIMESTAMPTZ DEFAULT NOW(),
+      updated_at  TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS pantry_items_user_id_idx ON pantry_items (user_id);
   `);
 
   // pg_trgm für Ähnlichkeitssuche (Duplikat-Check)

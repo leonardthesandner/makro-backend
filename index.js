@@ -137,6 +137,7 @@ app.use("/api/body-weight",  require("./routes/bodyWeight"));
 app.use("/api/account",      require("./routes/account"));
 app.use("/api/subscription", require("./routes/subscription"));
 app.use("/api/strava",      stravaAuth);
+app.use("/api/pantry",     require("./routes/pantry"));
 
 const PORT = process.env.PORT || 3000;
 
