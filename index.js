@@ -91,6 +91,33 @@ const adminAuthLimiter = rateLimit({
 });
 app.use("/api/admin", adminAuthLimiter, adminLimiter, require("./routes/admin"));
 
+// RevenueCat webhook (kein JWT – validiert eigenen Shared Secret)
+// Muss VOR requireAuth registriert sein!
+app.post("/api/subscription/revenuecat-webhook", async (req, res) => {
+  const authHeader = req.headers["authorization"] || "";
+  const secret = process.env.REVENUECAT_WEBHOOK_SECRET;
+  if (secret && authHeader !== secret) {
+    console.warn("RevenueCat webhook: ungültiger Secret");
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  const { pool } = require("./db");
+  const event = req.body;
+  const type  = event?.event?.type;
+  const appUserId = event?.event?.app_user_id;
+  console.log(`📱 RevenueCat webhook: type=${type}, user=${appUserId}`);
+  if (!appUserId) return res.status(400).json({ error: "app_user_id fehlt" });
+  try {
+    const proActive   = ["INITIAL_PURCHASE","RENEWAL","UNCANCELLATION","BILLING_ISSUE_RESOLVED","PRODUCT_CHANGE"].includes(type);
+    const proInactive = ["EXPIRATION","CANCELLATION"].includes(type);
+    if (proActive)   { await pool.query("UPDATE users SET is_pro = true  WHERE id = $1", [appUserId]); console.log(`✅ is_pro=true  User ${appUserId}`); }
+    if (proInactive) { await pool.query("UPDATE users SET is_pro = false WHERE id = $1", [appUserId]); console.log(`❌ is_pro=false User ${appUserId}`); }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("RevenueCat webhook error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // Alle anderen Routen: JWT erforderlich
 app.use("/api", requireAuth);
 app.use("/api/analyze",          aiLimiter, require("./routes/analyze"));
