@@ -106,6 +106,21 @@ const adminLimiter = rateLimit({
 });
 app.use("/api/admin", adminAuthLimiter1, adminAuthLimiter2, adminAuthLimiter3, adminLimiter, require("./routes/admin"));
 
+// IP-Sperre aufheben (eigener Secret – unabhängig vom Admin-Key)
+app.post("/api/admin-unlock", (req, res) => {
+  const { secret, ip } = req.body;
+  if (!process.env.UNLOCK_SECRET || secret !== process.env.UNLOCK_SECRET) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  if (!ip) return res.status(400).json({ error: "ip erforderlich" });
+  // Reset alle drei Limiter-Stufen für diese IP
+  adminAuthLimiter1.resetKey(`admin_l1_${ip}`);
+  adminAuthLimiter2.resetKey(`admin_l2_${ip}`);
+  adminAuthLimiter3.resetKey(`admin_l3_${ip}`);
+  console.log(`🔓 Admin-IP entsperrt: ${ip}`);
+  res.json({ ok: true, ip });
+});
+
 // RevenueCat webhook (kein JWT – validiert eigenen Shared Secret)
 // Muss VOR requireAuth registriert sein!
 app.post("/api/subscription/revenuecat-webhook", async (req, res) => {
