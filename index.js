@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const rateLimit = require("express-rate-limit");
+const { ipKeyGenerator } = rateLimit;
 const helmet = require("helmet");
 const { initDB } = require("./db");
 const { requireAuth } = require("./middleware/auth");
@@ -80,21 +81,21 @@ const adminAuthLimiter1 = rateLimit({
   windowMs: 30 * 1000,           // 30 Sekunden
   max: 5,
   skipSuccessfulRequests: true,
-  keyGenerator: (req) => `admin_l1_${req.ip}`,
+  keyGenerator: (req) => `admin_l1_${ipKeyGenerator(req)}`,
   message: { error: "Zu viele Fehlversuche. Bitte 30 Sekunden warten." },
 });
 const adminAuthLimiter2 = rateLimit({
   windowMs: 5 * 60 * 1000,       // 5 Minuten
   max: 10,
   skipSuccessfulRequests: true,
-  keyGenerator: (req) => `admin_l2_${req.ip}`,
+  keyGenerator: (req) => `admin_l2_${ipKeyGenerator(req)}`,
   message: { error: "Zu viele Fehlversuche. Bitte 5 Minuten warten." },
 });
 const adminAuthLimiter3 = rateLimit({
   windowMs: 30 * 60 * 1000,      // 30 Minuten
   max: 15,
   skipSuccessfulRequests: true,
-  keyGenerator: (req) => `admin_l3_${req.ip}`,
+  keyGenerator: (req) => `admin_l3_${ipKeyGenerator(req)}`,
   message: { error: "Zu viele Fehlversuche. IP für 30 Minuten gesperrt." },
 });
 // Allgemeines Limit: 30 Anfragen/15 Min für eingeloggte Session
