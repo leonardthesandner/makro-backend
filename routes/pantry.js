@@ -195,28 +195,25 @@ router.post("/scan", upload.single("image"), async (req, res) => {
         role: "user",
         content: [
           { type: "image", source: { type: "base64", media_type: mediaType, data: imageBase64 } },
-          { type: "text", text: `Du analysierst einen deutschen Kassenbon. Extrahiere alle Lebensmittel.
+          { type: "text", text: `Deutscher Kassenbon. Nur Lebensmittel als JSON-Array.
 
-WICHTIG: Erkenne automatisch die Packungsgröße aus dem Produktnamen auf dem Bon.
-Beispiele:
-- "Vollmilch 3,5% 1L" → name: "Vollmilch 3,5%", quantity: 1, unit: "L"
-- "Nudeln 500g" → name: "Nudeln", quantity: 500, unit: "g"
-- "Joghurt 6x150g" → name: "Joghurt", quantity: 900, unit: "g"
-- "Mineralwasser 1,5L" → name: "Mineralwasser", quantity: 1.5, unit: "L"
-- "Eier 10 Stück" → name: "Eier", quantity: 10, unit: "Stück"
-- "Butter 250g" → name: "Butter", quantity: 250, unit: "g"
+IGNORIERE: Pfand, Rabatte, Summen, Steuern, Zahlungen, Filialdaten, Non-Food (Drogerie, Haushalt, Tierfutter, Tabak, Beutel).
 
-Falls keine Größe erkennbar: quantity: 1, unit: "Stück"
+ABKÜRZUNGEN: MIL/H-MIL→Milch, JOGH→Joghurt, SPAGH→Nudeln, APF/BAN→Obst, SCHNK→Wurst, WASS→Wasser, COLA→Cola
 
-Für jedes Lebensmittel:
-- name: Produktname auf Deutsch (ohne Größenangabe)
-- quantity: Packungsgröße als Zahl
-- unit: Einheit (g, kg, ml, L, Stück, Packung)
-- category: "fridge" für Kühlware (Milch, Joghurt, Fleisch, Wurst, Käse, Eier, Obst, Gemüse) oder "pantry" für Trockenwaren (Nudeln, Reis, Konserven, Öl, Getränke, Süßigkeiten)
-- barcode: EAN-Barcode falls auf dem Bon sichtbar, sonst null
+MENGEN (quantity=Stückzahl, unit_quantity=Menge/Stück, unit_measure=Einheit):
+"Nudeln 500g"→quantity:1,unit_quantity:500,unit_measure:"g"
+"Joghurt 6x150g"→quantity:6,unit_quantity:150,unit_measure:"g"
+"Mineralwasser 1,5L"→quantity:1,unit_quantity:1.5,unit_measure:"L"
+"Eier 10 Stück"→quantity:10,unit_quantity:1,unit_measure:"Stück"
 
-Antworte NUR mit einem JSON-Array ohne Markdown:
-[{"name":"Vollmilch 3,5%","quantity":1,"unit":"L","category":"fridge","barcode":null}]` }
+STANDARDGRÖSSEN (falls nicht erkennbar): Milch→1L, Joghurt→150g, Butter→250g, Nudeln→500g, Reis→500g, Mehl/Zucker→1kg, Wasser→1.5L, Saft→1L, Wurst→150g, Käse→150g, Hackfleisch→500g. Sonst: quantity:1,unit_quantity:1,unit_measure:"Stück"
+
+NAMEN: Mengenangaben entfernen, Abkürzungen auflösen, Deutsch.
+KATEGORIE: fridge=Milch/Fleisch/Wurst/Käse/Eier/Obst/Gemüse, pantry=alles andere.
+BARCODE: EAN nur wenn eindeutig, sonst null.
+
+Nur JSON, kein Text: [{"name":"string","quantity":number,"unit":"Stück","unit_quantity":number,"unit_measure":"g|kg|ml|L|Stück","category":"fridge|pantry","barcode":"string|null"}]` }
         ]
       }]
     });
@@ -240,10 +237,25 @@ Antworte NUR mit einem JSON-Array ohne Markdown:
         food = await lookupFood(item.name, item.name, item.name, false).catch(() => null);
       }
 
+      // Map unit_quantity/unit_measure → single quantity+unit for pantry
+      // e.g. Joghurt 6x150g → quantity:900, unit:"g"
+      // e.g. Eier 10 Stück  → quantity:10,  unit:"Stück"
+      const uMeasure = item.unit_measure || "Stück";
+      const uQty     = parseFloat(item.unit_quantity) || 1;
+      const count    = parseFloat(item.quantity) || 1;
+      let finalQty, finalUnit;
+      if (uMeasure === "Stück") {
+        finalQty  = count;
+        finalUnit = "Stück";
+      } else {
+        finalQty  = count * uQty;
+        finalUnit = uMeasure;
+      }
+
       return {
         name:         item.name,
-        quantity:     item.quantity || 1,
-        unit:         item.unit || "Stück",
+        quantity:     finalQty,
+        unit:         finalUnit,
         category:     item.category || "pantry",
         food_id:      food?.id    || null,
         kcal_100:     food?.kcal_100    ?? null,
