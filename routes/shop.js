@@ -47,6 +47,27 @@ router.post("/checkout", async (req, res) => {
         },
       ],
       mode: "payment",
+      shipping_address_collection: {
+        allowed_countries: ["DE", "AT", "CH"],
+      },
+      shipping_options: [
+        {
+          shipping_rate_data: {
+            type: "fixed_amount",
+            fixed_amount: { amount: 490, currency: "eur" },
+            display_name: "Standard (3–5 Werktage)",
+            delivery_estimate: { minimum: { unit: "business_day", value: 3 }, maximum: { unit: "business_day", value: 5 } },
+          },
+        },
+        {
+          shipping_rate_data: {
+            type: "fixed_amount",
+            fixed_amount: { amount: 990, currency: "eur" },
+            display_name: "Express (1–2 Werktage)",
+            delivery_estimate: { minimum: { unit: "business_day", value: 1 }, maximum: { unit: "business_day", value: 2 } },
+          },
+        },
+      ],
       success_url: "https://makro-tracking.com/success.html?session_id={CHECKOUT_SESSION_ID}",
       cancel_url:  "https://makro-tracking.com/",
       locale: "de",
