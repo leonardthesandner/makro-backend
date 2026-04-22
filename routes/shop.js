@@ -20,32 +20,35 @@ const PACK_PRICES = { 10: 1500, 20: 2800, 50: 6500 };
 // POST /api/shop/checkout
 router.post("/checkout", async (req, res) => {
   try {
-    const { flavor, pack } = req.body;
+    const { items } = req.body;
 
-    if (!FLAVOR_NAMES[flavor]) {
-      return res.status(400).json({ error: "Ungültige Sorte" });
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: "Warenkorb ist leer" });
     }
-    const packInt = parseInt(pack, 10);
-    if (!PACK_PRICES[packInt]) {
-      return res.status(400).json({ error: "Ungültige Packgröße (10, 20 oder 50)" });
+
+    const line_items = [];
+    for (const { flavor, pack, qty = 1 } of items) {
+      if (!FLAVOR_NAMES[flavor]) return res.status(400).json({ error: `Ungültige Sorte: ${flavor}` });
+      const packInt = parseInt(pack, 10);
+      if (!PACK_PRICES[packInt]) return res.status(400).json({ error: `Ungültige Packgröße: ${pack}` });
+      const qtyInt = Math.max(1, Math.min(99, parseInt(qty, 10) || 1));
+      line_items.push({
+        price_data: {
+          currency: "eur",
+          product_data: {
+            name: `${FLAVOR_NAMES[flavor]} — ${packInt}er Pack`,
+            description: `${packInt} Gele à ${(PACK_PRICES[packInt] / packInt / 100).toFixed(2).replace(".", ",")} €`,
+          },
+          unit_amount: PACK_PRICES[packInt],
+        },
+        quantity: qtyInt,
+      });
     }
 
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency: "eur",
-            product_data: {
-              name: `${FLAVOR_NAMES[flavor]} — ${packInt}er Pack`,
-              description: `${packInt} Energiegele à ${(PACK_PRICES[packInt] / packInt / 100).toFixed(2).replace(".", ",")} €`,
-            },
-            unit_amount: PACK_PRICES[packInt],
-          },
-          quantity: 1,
-        },
-      ],
+      line_items,
       mode: "payment",
       shipping_address_collection: {
         allowed_countries: ["DE", "AT", "CH"],
