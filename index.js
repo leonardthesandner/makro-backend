@@ -149,6 +149,10 @@ app.post("/api/subscription/revenuecat-webhook", async (req, res) => {
   }
 });
 
+// Shop: kein JWT, eigenes Rate-Limit
+const shopLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, message: { error: "Zu viele Anfragen." } });
+app.use("/api/shop", shopLimiter, require("./routes/shop"));
+
 // Alle anderen Routen: JWT erforderlich
 app.use("/api", requireAuth);
 app.use("/api/analyze",          aiLimiter, require("./routes/analyze"));
